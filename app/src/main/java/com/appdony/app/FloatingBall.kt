@@ -19,11 +19,12 @@ class FloatingBall(
     private val accentProvider: () -> Int,
     private val onTap: () -> Unit
 ) {
-    
+
     val size = 120
     val view: FrameLayout = FrameLayout(context)
 
     private val box: LinearLayout
+    private val icon: ImageView
     private val badge: TextView
     private val handler = Handler(Looper.getMainLooper())
     private val hideRunnable = Runnable { fadeOut() }
@@ -35,10 +36,10 @@ class FloatingBall(
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = 28f
-                setColor(accent)
+                setColor(accentProvider())
             }
         }
-        val icon = ImageView(context).apply {
+        icon = ImageView(context).apply {
             setImageResource(R.drawable.ic_carton)
             layoutParams = LinearLayout.LayoutParams(70, 70)
         }
@@ -62,6 +63,15 @@ class FloatingBall(
 
         setupDraggable(context)
         handler.postDelayed(hideRunnable, 3000)
+    }
+
+    // ⭐ این تابع رو اینجا (بعد از init) بذار
+    fun updateColor() {
+        box.background = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = 28f
+            setColor(accentProvider())
+        }
     }
 
     fun updateBadge(count: Int) {
