@@ -7,25 +7,17 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.os.Handler
 import android.os.Looper
-import android.provider.Settings
 import android.view.Gravity
-import android.view.MotionEvent
 import android.view.View
-import android.view.ViewConfiguration
-import android.view.ViewGroup
-import android.view.animation.OvershootInterpolator
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.webkit.CookieManager
-import android.webkit.DownloadListener
-import android.webkit.URLUtil
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -35,85 +27,34 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.core.view.WindowInsetsControllerCompat
-import java.io.File
-import java.net.URL
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private lateinit var splashView: FrameLayout
     private lateinit var miniLoader: SpinnerLoader
-    private lateinit var ballWrapper: FrameLayout
-    private lateinit var ballBox: LinearLayout
-    private lateinit var downloadPanel: FrameLayout
-    private lateinit var panelBox: LinearLayout
-    private lateinit var downloadsList: LinearLayout
-    private lateinit var badgeView: TextView
-    private lateinit var downloadManager: DownloadManager
-    private var panelOpen = false
+    private lateinit var root: FrameLayout
+    private lateinit var ball: FloatingBall
+    private lateinit var panel: DownloadPanel
+    private lateinit var helper: DownloadHelper
+
     private var isDark = false
     private var accent = 0
-    private var cssInjectedOnce = false
-
-    // ⭐ مدیریت لودینگ داینامیک
     private var loaderShownAt = 0L
     private val minLoaderTime = 250L
+    private val handler = Handler(Looper.getMainLooper())
+    private var loaderShowRunnable: Runnable? = null
 
-    private val refreshHandler = Handler(Looper.getMainLooper())
-    private val refreshRunnable = object : Runnable {
-        override fun run() {
-            refreshDownloads()
-            refreshHandler.postDelayed(this, 1000)
-        }
-    }
-
-    private val hideBallRunnable = Runnable {
-        ballWrapper.animate()
-            .alpha(0.35f)
-            .scaleX(0.72f).scaleY(0.72f)
-            .setDuration(350)
-            .start()
-    }
-
-    private var showLoaderRunnable: Runnable? = null
-
-    // ⭐ لودینگ داینامیک — بدون تایم فیکس
-    private fun hideLoader() {
-        showLoaderRunnable?.let { refreshHandler.removeCallbacks(it) }
-
-        val elapsed = System.currentTimeMillis() - loaderShownAt
-        if (elapsed < minLoaderTime && loaderShownAt > 0) {
-            refreshHandler.postDelayed({
-                miniLoader.visibility = View.GONE
-                ballWrapper.visibility = View.VISIBLE
-            }, minLoaderTime - elapsed)
-        } else {
-            miniLoader.visibility = View.GONE
-            ballWrapper.visibility = View.VISIBLE
-        }
-        loaderShownAt = 0L
-    }
-
-    private fun showLoaderIfNeeded() {
-        loaderShownAt = System.currentTimeMillis()
-        miniLoader.visibility = View.VISIBLE
-        ballWrapper.visibility = View.GONE
-    }
-
-    private val downloadCompleteReceiver = object : BroadcastReceiver() {
+    private val downloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             Toast.makeText(this@MainActivity, "دانلود کامل شد", Toast.LENGTH_SHORT).show()
-            updateBadge()
-            if (panelOpen) refreshDownloads()
+            ball.updateBadge(helper.getActiveCount())
+            if (panel.isOpen) panel.refresh()
         }
     }
 
@@ -126,11 +67,10 @@ class MainActivity : AppCompatActivity() {
         accent = if (isDark) Color.parseColor("#4DD0C7") else Color.parseColor("#0D7377")
 
         window.statusBarColor = splashBg
-        val wic = WindowInsetsControllerCompat(window, window.decorView)
-        wic.isAppearanceLightStatusBars = !isDark
+        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = !isDark
 
         clearCacheIfVersionChanged()
-        downloadManager = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        helper = DownloadHelper(this)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS)
@@ -140,127 +80,40 @@ class MainActivity : AppCompatActivity() {
         }
 
         registerReceiver(
-            downloadCompleteReceiver,
+            downloadReceiver,
             IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) RECEIVER_NOT_EXPORTED else 0
         )
 
-        val root = FrameLayout(this)
+        root = FrameLayout(this)
 
         // ============ SPLASH ============
         splashView = FrameLayout(this).apply { setBackgroundColor(splashBg) }
-        val loader = SpinnerLoader(this, isDark, 30f)
-        val lp = FrameLayout.LayoutParams(280, 280).apply { gravity = Gravity.CENTER }
-        splashView.addView(loader, lp)
+        splashView.addView(SpinnerLoader(this, isDark, 30f),
+            FrameLayout.LayoutParams(280, 280).apply { gravity = Gravity.CENTER })
 
-        miniLoader = SpinnerLoader(this, isDark, 18f)
-        val miniParams = FrameLayout.LayoutParams(180, 180).apply { gravity = Gravity.CENTER }
-        miniLoader.visibility = View.GONE
+        // ============ MINI LOADER ============
+        miniLoader = SpinnerLoader(this, isDark, 18f).apply { visibility = View.GONE }
+
+        // ============ PANEL ============
+        panel = DownloadPanel(this, isDark, accent, helper)
 
         // ============ BALL ============
-        ballWrapper = FrameLayout(this)
-        val ballSize = 120
-
-        ballBox = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = 28f
-                setColor(accent)
-            }
+        ball = FloatingBall(this, accent) {
+            if (panel.isOpen) panel.close() else panel.open()
         }
-        val ballIcon = ImageView(this).apply {
-            setImageResource(R.drawable.ic_carton)
-            layoutParams = LinearLayout.LayoutParams(70, 70)
-        }
-        ballBox.addView(ballIcon)
+        ball.view.alpha = 0f
+        ball.view.scaleX = 0.8f
+        ball.view.scaleY = 0.8f
+        ball.view.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(400).start()
 
-        badgeView = TextView(this).apply {
-            textSize = 11f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#E53935"))
-            }
-            visibility = View.GONE
-        }
-
-        ballWrapper.addView(ballBox, FrameLayout.LayoutParams(ballSize, ballSize))
-        ballWrapper.addView(badgeView, FrameLayout.LayoutParams(40, 40).apply {
-            gravity = Gravity.TOP or Gravity.END
-        })
-
-        val ballWrapperParams = FrameLayout.LayoutParams(ballSize, ballSize).apply {
+        val ballParams = FrameLayout.LayoutParams(ball.size, ball.size).apply {
             gravity = Gravity.TOP or Gravity.START
         }
 
-        // ============ PANEL ============
-        downloadPanel = FrameLayout(this).apply {
-            setBackgroundColor(Color.parseColor("#CC000000"))
-            visibility = View.GONE
-            setOnClickListener { closePanel() }
-        }
-
-        panelBox = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(if (isDark) Color.parseColor("#1A1A1A") else Color.WHITE)
-            setPadding(20, 20, 20, 20)
-        }
-        val panelBoxParams = FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            (resources.displayMetrics.heightPixels * 0.72).toInt()
-        ).apply { gravity = Gravity.BOTTOM }
-
-        val handle = View(this).apply {
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#888888"))
-                cornerRadius = 10f
-            }
-        }
-        panelBox.addView(handle, LinearLayout.LayoutParams(100, 6).apply {
-            gravity = Gravity.CENTER_HORIZONTAL
-            bottomMargin = 16
-        })
-
-        val panelTitle = TextView(this).apply {
-            text = "دانلودها"
-            textSize = 20f
-            setTextColor(if (isDark) Color.WHITE else Color.BLACK)
-            gravity = Gravity.CENTER
-            setPadding(0, 8, 0, 16)
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-        }
-        panelBox.addView(panelTitle)
-
-        val scroll = ScrollView(this)
-        downloadsList = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, 8, 0, 16)
-        }
-        scroll.addView(downloadsList)
-        panelBox.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-
-        val closeBtn = TextView(this).apply {
-            text = "بستن"
-            textSize = 15f
-            gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-            setPadding(0, 20, 0, 20)
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            background = GradientDrawable().apply {
-                setColor(accent)
-                cornerRadius = 50f
-            }
-            setOnClickListener { closePanel() }
-        }
-        panelBox.addView(closeBtn, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 16 })
-
-        downloadPanel.addView(panelBox, panelBoxParams)
-
         // ============ WEBVIEW ============
-        val initialUrl = intent?.data?.toString() ?: "https://appdony.ir/?v=${System.currentTimeMillis() / (1000 * 60 * 60 * 24)}"
+        val initialUrl = intent?.data?.toString()
+            ?: "https://appdony.ir/?v=${System.currentTimeMillis() / (1000 * 60 * 60 * 24)}"
 
         webView = WebView(this).apply {
             visibility = View.GONE
@@ -272,8 +125,6 @@ class MainActivity : AppCompatActivity() {
                 cacheMode = WebSettings.LOAD_DEFAULT
                 useWideViewPort = true
                 loadWithOverviewMode = true
-                builtInZoomControls = true
-                displayZoomControls = false
                 mediaPlaybackRequiresUserGesture = false
                 setSupportMultipleWindows(false)
                 allowFileAccess = true
@@ -281,51 +132,48 @@ class MainActivity : AppCompatActivity() {
             }
             setLayerType(View.LAYER_TYPE_HARDWARE, null)
 
+            addJavascriptInterface(object {
+                @JavascriptInterface
+                fun onDownloadFly(cssX: Float, cssY: Float) {
+                    runOnUiThread { flyIconToBall(cssX, cssY) }
+                }
+            }, "AppdonyBridge")
+
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                    super.onPageStarted(view, url, favicon)
-                    showLoaderIfNeeded()
+                    super.onPageStarted(view, url, favicon); showLoader()
                 }
-
                 override fun onPageFinished(view: WebView?, url: String?) {
-                    super.onPageFinished(view, url)
-                    hideLoader()
-                    injectCustomCSS()
+                    super.onPageFinished(view, url); hideLoader(); injectCustomCSS()
                 }
-
                 override fun onPageCommitVisible(view: WebView?, url: String?) {
-                    super.onPageCommitVisible(view, url)
-                    hideLoader()
-                    injectCustomCSS()
+                    super.onPageCommitVisible(view, url); hideLoader(); injectCustomCSS()
                 }
-
                 override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
-                    super.doUpdateVisitedHistory(view, url, isReload)
-                    hideLoader()
-                    injectCustomCSS()
+                    super.doUpdateVisitedHistory(view, url, isReload); hideLoader(); injectCustomCSS()
                 }
-
                 override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                     super.onReceivedError(view, request, error)
-                    if (request?.isForMainFrame == true) {
-                        hideLoader()
-                    }
+                    if (request?.isForMainFrame == true) hideLoader()
                 }
             }
 
             webChromeClient = object : WebChromeClient() {
                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
                     super.onProgressChanged(view, newProgress)
-                    // ⭐ خیلی زود لودینگ مخفی میشه (40%)
-                    if (newProgress >= 40) {
-                        hideLoader()
-                    }
+                    if (newProgress >= 40) hideLoader()
                 }
             }
 
-            setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
-                val downloadId = startDownload(url, userAgent, contentDisposition, mimetype)
-                if (downloadId > 0) fetchAndSaveIcon(downloadId)
+            setDownloadListener { url, ua, cd, mt, _ ->
+                val id = helper.startDownload(url, ua, cd, mt)
+                if (id > 0) {
+                    Toast.makeText(this@MainActivity, "دانلود شروع شد", Toast.LENGTH_SHORT).show()
+                    ball.updateBadge(helper.getActiveCount())
+                    fetchAndSaveIcon(id)
+                } else {
+                    Toast.makeText(this@MainActivity, "خطا در دانلود", Toast.LENGTH_SHORT).show()
+                }
             }
 
             loadUrl(initialUrl)
@@ -333,22 +181,20 @@ class MainActivity : AppCompatActivity() {
 
         root.addView(splashView, FrameLayout.LayoutParams(-1, -1))
         root.addView(webView, FrameLayout.LayoutParams(-1, -1))
-        root.addView(miniLoader, miniParams)
-        root.addView(downloadPanel, FrameLayout.LayoutParams(-1, -1))
-        root.addView(ballWrapper, ballWrapperParams)
+        root.addView(miniLoader, FrameLayout.LayoutParams(180, 180).apply { gravity = Gravity.CENTER })
+        root.addView(panel.view, FrameLayout.LayoutParams(-1, -1))
+        root.addView(ball.view, ballParams)
         setContentView(root)
 
         root.post {
             val margin = 40f
-            val bottomMargin = 380f
-            ballWrapper.x = root.width - ballSize - margin
-            ballWrapper.y = root.height - ballSize - bottomMargin
+            ball.view.x = root.width - ball.size - margin
+            ball.view.y = root.height - ball.size - 380f
         }
 
-        setupDraggableBall()
-        updateBadge()
+        ball.updateBadge(helper.getActiveCount())
 
-        Handler(Looper.getMainLooper()).postDelayed({
+        handler.postDelayed({
             splashView.animate().alpha(0f).setDuration(600).withEndAction {
                 splashView.visibility = View.GONE
                 webView.visibility = View.VISIBLE
@@ -357,21 +203,75 @@ class MainActivity : AppCompatActivity() {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (panelOpen) closePanel()
+                if (panel.isOpen) panel.close()
                 else if (webView.canGoBack()) webView.goBack()
-                else {
-                    isEnabled = false
-                    onBackPressedDispatcher.onBackPressed()
-                }
+                else { isEnabled = false; onBackPressedDispatcher.onBackPressed() }
             }
         })
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        intent.data?.let { uri ->
-            webView.loadUrl(uri.toString())
+    // ============ 🚀 انیمیشن پرنده — از دکمه واقعی به توپ ============
+    private fun flyIconToBall(cssX: Float, cssY: Float) {
+        // تبدیل CSS pixel به Android pixel
+        val density = resources.displayMetrics.density
+        val startX = cssX * density
+        val startY = cssY * density
+
+        // موقعیت توپ نسبت به root
+        val ballCenterX = ball.view.x + ball.size / 2f
+        val ballCenterY = ball.view.y + ball.size / 2f
+
+        val flyerSize = 90
+
+        val flyer = FrameLayout(this).apply {
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(accent)
+                setStroke(6, Color.WHITE)
+            }
+            elevation = 25f
         }
+        val icon = ImageView(this).apply {
+            setImageResource(R.drawable.ic_carton)
+            setPadding(20, 20, 20, 20)
+        }
+        flyer.addView(icon, FrameLayout.LayoutParams(-1, -1))
+
+        root.addView(flyer, FrameLayout.LayoutParams(flyerSize, flyerSize).apply {
+            leftMargin = (startX - flyerSize / 2).toInt()
+            topMargin = (startY - flyerSize / 2).toInt()
+        })
+
+        // فاز ۱: بزرگ شدن اولیه
+        flyer.scaleX = 0.3f; flyer.scaleY = 0.3f
+        flyer.alpha = 0f
+        flyer.animate()
+            .scaleX(1.15f).scaleY(1.15f).alpha(1f)
+            .setDuration(250)
+            .setInterpolator(AccelerateDecelerateInterpolator())
+            .withEndAction {
+                // فاز ۲: پرواز به سمت توپ — کند و نرم
+                flyer.animate()
+                    .x(ballCenterX - flyerSize / 2f)
+                    .y(ballCenterY - flyerSize / 2f)
+                    .scaleX(0.35f).scaleY(0.35f)
+                    .alpha(0.6f)
+                    .setDuration(1300)
+                    .setInterpolator(AccelerateDecelerateInterpolator())
+                    .withEndAction {
+                        root.removeView(flyer)
+                        // پالس روی توپ
+                        ball.view.animate()
+                            .scaleX(1.15f).scaleY(1.15f)
+                            .setDuration(180)
+                            .withEndAction {
+                                ball.view.animate().scaleX(1f).scaleY(1f).setDuration(180).start()
+                            }
+                            .start()
+                    }
+                    .start()
+            }
+            .start()
     }
 
     private fun fetchAndSaveIcon(downloadId: Long) {
@@ -379,480 +279,92 @@ class MainActivity : AppCompatActivity() {
             (function() {
                 var m = document.querySelector('meta[property="og:image"]');
                 if (m && m.content) return m.content;
-                var m2 = document.querySelector('meta[name="twitter:image"]');
-                if (m2 && m2.content) return m2.content;
                 var link = document.querySelector('link[rel="apple-touch-icon"]');
                 if (link && link.href) return link.href;
-                var icon = document.querySelector('link[rel="icon"]');
-                if (icon && icon.href) return icon.href;
                 return '';
             })();
         """.trimIndent()) { result ->
-            val iconUrl = result?.trim('"') ?: ""
-            if (iconUrl.isNotEmpty() && iconUrl.startsWith("http")) {
-                getSharedPreferences("appdony_icons", MODE_PRIVATE)
-                    .edit().putString("icon_$downloadId", iconUrl).apply()
-            }
+            val url = result?.trim('"') ?: ""
+            if (url.startsWith("http")) helper.saveIcon(downloadId, url)
         }
     }
 
-    private fun setupDraggableBall() {
-        var downX = 0f
-        var downY = 0f
-        var startX = 0f
-        var startY = 0f
-        var isDragging = false
-        val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
-
-        ballWrapper.setOnTouchListener { v, event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    downX = event.rawX; downY = event.rawY
-                    startX = v.x; startY = v.y
-                    isDragging = false
-                    refreshHandler.removeCallbacks(hideBallRunnable)
-                    ballWrapper.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(200).start()
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    val dx = event.rawX - downX
-                    val dy = event.rawY - downY
-                    if (!isDragging && (Math.abs(dx) > touchSlop || Math.abs(dy) > touchSlop)) {
-                        isDragging = true
-                        v.animate().scaleX(1.08f).scaleY(1.08f).setDuration(100).start()
-                    }
-                    if (isDragging) {
-                        val parent = v.parent as View
-                        val newX = (startX + dx).coerceIn(0f, (parent.width - v.width).toFloat())
-                        val newY = (startY + dy).coerceIn(0f, (parent.height - v.height).toFloat())
-                        v.x = newX; v.y = newY
-                    }
-                    true
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    v.animate().scaleX(1f).scaleY(1f).setDuration(100).start()
-                    if (!isDragging) {
-                        if (panelOpen) closePanel() else openPanel()
-                    }
-                    refreshHandler.removeCallbacks(hideBallRunnable)
-                    refreshHandler.postDelayed(hideBallRunnable, 3000)
-                    true
-                }
-                else -> false
-            }
+    private fun showLoader() {
+        loaderShownAt = System.currentTimeMillis()
+        loaderShowRunnable = Runnable {
+            miniLoader.visibility = View.VISIBLE
+            ball.view.visibility = View.GONE
         }
-
-        refreshHandler.postDelayed(hideBallRunnable, 3000)
+        handler.postDelayed(loaderShowRunnable!!, 300) // کمی تاخیر تا فقط لودهای واقعی دیده بشن
     }
 
-    private fun startDownload(url: String, userAgent: String?, contentDisposition: String?, mimetype: String?): Long {
-        try {
-            if (url.startsWith("blob:") || url.startsWith("data:")) {
-                Toast.makeText(this, "این نوع لینک پشتیبانی نمی‌شود", Toast.LENGTH_SHORT).show()
-                return -1
-            }
-            val uri = Uri.parse(url)
-            val request = DownloadManager.Request(uri)
-
-            val cookies = CookieManager.getInstance().getCookie(url)
-            if (cookies != null) request.addRequestHeader("Cookie", cookies)
-            if (userAgent != null) request.addRequestHeader("User-Agent", userAgent)
-            request.addRequestHeader("Referer", "https://appdony.ir/")
-
-            val fileName = URLUtil.guessFileName(url, contentDisposition, mimetype)
-            request.setTitle(fileName)
-            request.setDescription("در حال دانلود از اپدونی")
-            request.allowScanningByMediaScanner()
-            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
-            if (mimetype != null) request.setMimeType(mimetype)
-
-            val id = downloadManager.enqueue(request)
-            Toast.makeText(this, "دانلود شروع شد:\n$fileName", Toast.LENGTH_LONG).show()
-            updateBadge()
-            return id
-        } catch (e: Exception) {
-            Toast.makeText(this, "خطا: ${e.message}", Toast.LENGTH_LONG).show()
-            return -1
-        }
-    }
-
-    private fun updateBadge() {
-        val cursor = downloadManager.query(DownloadManager.Query())
-        var activeCount = 0
-        while (cursor.moveToNext()) {
-            val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-            if (status == DownloadManager.STATUS_RUNNING || status == DownloadManager.STATUS_PENDING) activeCount++
-        }
-        cursor.close()
-        if (activeCount > 0) {
-            badgeView.text = activeCount.toString()
-            badgeView.visibility = View.VISIBLE
-        } else {
-            badgeView.visibility = View.GONE
-        }
-    }
-
-    private fun openPanel() {
-        panelOpen = true
-        refreshDownloads()
-        downloadPanel.visibility = View.VISIBLE
-        downloadPanel.alpha = 0f
-        downloadPanel.animate().alpha(1f).setDuration(200).start()
-        panelBox.translationY = panelBox.height.toFloat()
-        panelBox.animate()
-            .translationY(0f)
-            .setInterpolator(OvershootInterpolator(1.1f))
-            .setDuration(420)
-            .start()
-        refreshHandler.post(refreshRunnable)
-        updateBadge()
-    }
-
-    private fun closePanel() {
-        panelOpen = false
-        panelBox.animate()
-            .translationY(panelBox.height.toFloat())
-            .setDuration(280)
-            .start()
-        downloadPanel.animate().alpha(0f).setDuration(280).withEndAction {
-            downloadPanel.visibility = View.GONE
-        }.start()
-        refreshHandler.removeCallbacks(refreshRunnable)
-    }
-
-    private fun refreshDownloads() {
-        downloadsList.removeAllViews()
-        val cursor = downloadManager.query(DownloadManager.Query())
-        val items = mutableListOf<View>()
-        while (cursor.moveToNext()) {
-            val id = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_ID))
-            val title = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TITLE)) ?: "بدون نام"
-            val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-            val downloaded = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
-            val total = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
-            val localUri = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI))
-            items.add(0, createDownloadItem(id, title, status, downloaded, total, localUri))
-        }
-        cursor.close()
-
-        if (items.isEmpty()) {
-            val empty = TextView(this).apply {
-                text = "هنوز دانلودی نداری"
-                textSize = 15f
-                gravity = Gravity.CENTER
-                setPadding(0, 60, 0, 60)
-                setTextColor(Color.GRAY)
-            }
-            downloadsList.addView(empty)
-        } else {
-            items.forEach { downloadsList.addView(it) }
-        }
-        updateBadge()
-    }
-
-    private fun createDownloadItem(id: Long, title: String, status: Int, downloaded: Long, total: Long, localUri: String?): View {
-        val textColor = if (isDark) Color.WHITE else Color.BLACK
-        val cardBg = if (isDark) Color.parseColor("#2A2A2A") else Color.parseColor("#F5F5F5")
-
-        val outerBox = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-        }
-        outerBox.layoutParams = LinearLayout.LayoutParams(-1, -2).apply {
-            bottomMargin = 14
-            marginStart = 20
-            marginEnd = 20
-        }
-
-        val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(20, 22, 20, 22)
-            background = GradientDrawable().apply {
-                setColor(cardBg)
-                cornerRadius = 24f
-            }
-        }
-        outerBox.addView(box, LinearLayout.LayoutParams(-1, -2))
-
-        val iconSize = 90
-        val iconView = ImageView(this).apply {
-            scaleType = ImageView.ScaleType.CENTER_CROP
-            setImageResource(R.drawable.ic_carton)
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = 22f
-                setColor(if (isDark) Color.parseColor("#1A1A1A") else Color.WHITE)
-            }
-            clipToOutline = true
-        }
-        box.addView(iconView, LinearLayout.LayoutParams(iconSize, iconSize).apply {
-            gravity = Gravity.CENTER_HORIZONTAL
-        })
-
-        val savedIcon = getSharedPreferences("appdony_icons", MODE_PRIVATE)
-            .getString("icon_$id", null)
-        if (!savedIcon.isNullOrEmpty()) {
-            loadImageAsync(savedIcon, iconView)
-        }
-
-        val nameTv = TextView(this).apply {
-            text = title
-            textSize = 15f
-            setTextColor(textColor)
-            maxLines = 2
-            ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
-            gravity = Gravity.CENTER
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setPadding(0, 14, 0, 0)
-        }
-        box.addView(nameTv, LinearLayout.LayoutParams(-1, -2))
-
-        val statusTv = TextView(this).apply {
-            textSize = 13f
-            setPadding(0, 10, 0, 16)
-            setTextColor(accent)
-            gravity = Gravity.CENTER
-            text = when (status) {
-                DownloadManager.STATUS_RUNNING -> {
-                    val pct = if (total > 0) (downloaded * 100 / total) else 0
-                    "در حال دانلود  $pct%   (${formatSize(downloaded)} / ${formatSize(total)})"
-                }
-                DownloadManager.STATUS_SUCCESSFUL -> "کامل شد  ${formatSize(total)}"
-                DownloadManager.STATUS_FAILED -> "خطا در دانلود"
-                DownloadManager.STATUS_PAUSED -> "متوقف"
-                else -> "در انتظار"
-            }
-        }
-        box.addView(statusTv, LinearLayout.LayoutParams(-1, -2))
-
-        val btnRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
-
-        if (status == DownloadManager.STATUS_SUCCESSFUL && localUri != null) {
-            val installBtn = TextView(this).apply {
-                text = "نصب"
-                textSize = 13f
-                setTextColor(Color.WHITE)
-                setPadding(45, 14, 45, 14)
-                typeface = android.graphics.Typeface.DEFAULT_BOLD
-                background = GradientDrawable().apply {
-                    setColor(accent)
-                    cornerRadius = 30f
-                }
-                setOnClickListener { installApk(localUri) }
-            }
-            btnRow.addView(installBtn)
-            btnRow.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(14, 1) })
-        }
-
-        val deleteBtn = TextView(this).apply {
-            text = "حذف"
-            textSize = 13f
-            setTextColor(Color.WHITE)
-            setPadding(45, 14, 45, 14)
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#E53935"))
-                cornerRadius = 30f
-            }
-            setOnClickListener {
-                downloadManager.remove(id)
-                getSharedPreferences("appdony_icons", MODE_PRIVATE).edit().remove("icon_$id").apply()
-                refreshDownloads()
-                Toast.makeText(this@MainActivity, "حذف شد", Toast.LENGTH_SHORT).show()
-            }
-        }
-        btnRow.addView(deleteBtn)
-        box.addView(btnRow, LinearLayout.LayoutParams(-1, -2))
-
-        return outerBox
-    }
-
-    private fun loadImageAsync(url: String, imageView: ImageView) {
-        Thread {
-            try {
-                val stream = URL(url).openStream()
-                val bmp = BitmapFactory.decodeStream(stream)
-                stream.close()
-                if (bmp != null) {
-                    runOnUiThread { imageView.setImageBitmap(bmp) }
-                }
-            } catch (e: Exception) {
-                // از آیکون پیش‌فرض استفاده کن
-            }
-        }.start()
-    }
-
-    private fun installApk(localUri: String) {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                if (!packageManager.canRequestPackageInstalls()) {
-                    Toast.makeText(this, "لطفاً اجازه نصب از این منبع را فعال کنید", Toast.LENGTH_LONG).show()
-                    startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
-                        .setData(Uri.parse("package:$packageName")))
-                    return
-                }
-            }
-            val uri = Uri.parse(localUri)
-            val file = File(uri.path ?: return)
-            val apkUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
-            } else uri
-
-            startActivity(Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(apkUri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            })
-        } catch (e: Exception) {
-            Toast.makeText(this, "خطا در نصب: ${e.message}", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    private fun formatSize(bytes: Long): String {
-        if (bytes <= 0) return "0 B"
-        val kb = bytes / 1024.0
-        val mb = kb / 1024.0
-        val gb = mb / 1024.0
-        return when {
-            gb >= 1 -> String.format("%.2f GB", gb)
-            mb >= 1 -> String.format("%.1f MB", mb)
-            kb >= 1 -> String.format("%.0f KB", kb)
-            else -> "$bytes B"
-        }
+    private fun hideLoader() {
+        loaderShowRunnable?.let { handler.removeCallbacks(it) }
+        val elapsed = System.currentTimeMillis() - loaderShownAt
+        val delay = if (loaderShownAt > 0 && elapsed < minLoaderTime) minLoaderTime - elapsed else 0L
+        handler.postDelayed({
+            miniLoader.visibility = View.GONE
+            ball.view.visibility = View.VISIBLE
+        }, delay)
+        loaderShownAt = 0L
     }
 
     private fun clearCacheIfVersionChanged() {
         val prefs = getSharedPreferences("appdony_prefs", MODE_PRIVATE)
-        val savedVersion = prefs.getInt("last_version", -1)
-        val currentVersion = try {
-            packageManager.getPackageInfo(packageName, 0).versionCode
-        } catch (e: Exception) { -1 }
-
-        if (savedVersion != currentVersion) {
+        val saved = prefs.getInt("last_version", -1)
+        val current = try { packageManager.getPackageInfo(packageName, 0).versionCode } catch (e: Exception) { -1 }
+        if (saved != current) {
             WebView(this).apply { clearCache(true); clearHistory(); clearFormData(); destroy() }
             CookieManager.getInstance().removeAllCookies(null)
             CookieManager.getInstance().flush()
             WebStorage.getInstance().deleteAllData()
-            prefs.edit().putInt("last_version", currentVersion).apply()
-            cssInjectedOnce = false
+            prefs.edit().putInt("last_version", current).apply()
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        intent.data?.let { webView.loadUrl(it.toString()) }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        try { unregisterReceiver(downloadCompleteReceiver) } catch (e: Exception) {}
-        refreshHandler.removeCallbacks(refreshRunnable)
-        refreshHandler.removeCallbacks(hideBallRunnable)
-        showLoaderRunnable?.let { refreshHandler.removeCallbacks(it) }
+        try { unregisterReceiver(downloadReceiver) } catch (_: Exception) {}
+        panel.destroy()
     }
 
-    class SpinnerLoader(context: Context, private val isDark: Boolean, private val strokeW: Float) : View(context) {
-        private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            style = android.graphics.Paint.Style.STROKE
-            strokeCap = android.graphics.Paint.Cap.ROUND
-            strokeWidth = strokeW
-        }
-        private val rect = android.graphics.RectF()
-        private val colorMain = if (isDark) Color.parseColor("#4DD0C7") else Color.parseColor("#0D7377")
-        private val colorLight = if (isDark) Color.parseColor("#7FE5DD") else Color.parseColor("#2AA5A0")
-        private val colorTransparent = if (isDark) Color.parseColor("#204DD0C7") else Color.parseColor("#200D7377")
-        private var rotation = 0f
-        private var sweep = 90f
-
-        init {
-            android.animation.ValueAnimator.ofFloat(0f, 360f).apply {
-                duration = 1400
-                repeatCount = android.animation.ValueAnimator.INFINITE
-                interpolator = android.view.animation.LinearInterpolator()
-                addUpdateListener { rotation = it.animatedValue as Float; invalidate() }
-                start()
-            }
-            android.animation.ValueAnimator.ofFloat(30f, 280f).apply {
-                duration = 1600
-                repeatCount = android.animation.ValueAnimator.INFINITE
-                repeatMode = android.animation.ValueAnimator.REVERSE
-                interpolator = android.view.animation.AccelerateDecelerateInterpolator()
-                addUpdateListener { sweep = it.animatedValue as Float; invalidate() }
-                start()
-            }
-        }
-
-        override fun onDraw(canvas: android.graphics.Canvas) {
-            super.onDraw(canvas)
-            val cx = width / 2f
-            val cy = height / 2f
-            val r = (minOf(width, height) - strokeW) / 2f
-            rect.set(cx - r, cy - r, cx + r, cy + r)
-            paint.shader = android.graphics.SweepGradient(cx, cy,
-                intArrayOf(colorMain, colorLight, colorTransparent, colorMain),
-                floatArrayOf(0f, 0.35f, 0.75f, 1f))
-            canvas.save()
-            canvas.rotate(rotation, cx, cy)
-            canvas.drawArc(rect, 0f, sweep, false, paint)
-            canvas.restore()
-        }
-    }
-
-    // ⭐ تزریق CSS با MutationObserver
     private fun injectCustomCSS() {
         try {
             val css = assets.open("style.css").bufferedReader().use { it.readText() }
-            val scriptJs = assets.open("script.js").bufferedReader().use { it.readText() }
-            val escapedCss = escapeForJs(css)
-
-            val injectJs = """
+            val js = assets.open("script.js").bufferedReader().use { it.readText() }
+            val escaped = escapeForJs(css)
+            val code = """
                 (function() {
                     function injectCss() {
                         if (document.getElementById('appdony-custom-style')) return;
-                        var style = document.createElement('style');
-                        style.id = 'appdony-custom-style';
-                        style.type = 'text/css';
-                        style.appendChild(document.createTextNode("$escapedCss"));
-                        var head = document.head || document.getElementsByTagName('head')[0];
-                        if (head) {
-                            head.appendChild(style);
-                        } else {
-                            document.documentElement.appendChild(style);
-                        }
+                        var s = document.createElement('style');
+                        s.id = 'appdony-custom-style';
+                        s.appendChild(document.createTextNode("$escaped"));
+                        (document.head || document.documentElement).appendChild(s);
                     }
-
                     injectCss();
-
                     if (!window._appdonyObserver) {
-                        window._appdonyObserver = new MutationObserver(function(mutations) {
-                            if (!document.getElementById('appdony-custom-style')) {
-                                injectCss();
-                            }
+                        window._appdonyObserver = new MutationObserver(function() {
+                            if (!document.getElementById('appdony-custom-style')) injectCss();
                         });
-                        window._appdonyObserver.observe(document.documentElement, {
-                            childList: true,
-                            subtree: true
-                        });
+                        window._appdonyObserver.observe(document.documentElement, { childList: true, subtree: true });
                     }
-
                     if (!window._appdonyInterval) {
                         window._appdonyInterval = setInterval(function() {
-                            if (!document.getElementById('appdony-custom-style')) {
-                                injectCss();
-                            }
+                            if (!document.getElementById('appdony-custom-style')) injectCss();
                         }, 1500);
                     }
-
-                    try {
-                        $scriptJs
-                    } catch(e) {
-                        console.log('script error', e);
-                    }
+                    try { $js } catch(e) {}
                 })();
             """.trimIndent()
-
-            webView.evaluateJavascript(injectJs, null)
+            webView.evaluateJavascript(code, null)
         } catch (e: Exception) {
-            Toast.makeText(this, "خطا در بارگذاری CSS: ${e.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "خطا: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
