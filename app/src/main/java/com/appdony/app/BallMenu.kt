@@ -11,7 +11,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 
-class BallMenu(private val context: Context, private val isDark: Boolean, private val accent: Int) {
+class BallMenu(private val context: Context, private val accent: Int) {
 
     val view: FrameLayout = FrameLayout(context).apply {
         visibility = View.GONE
@@ -20,13 +20,7 @@ class BallMenu(private val context: Context, private val isDark: Boolean, privat
 
     private val menuBox: LinearLayout = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
-        background = GradientDrawable().apply {
-            setColor(if (isDark) Color.parseColor("#252525") else Color.WHITE)
-            cornerRadius = 40f
-            setStroke(2, Color.parseColor("#330D7377"))
-        }
-        elevation = 20f
-        setPadding(12, 12, 12, 12)
+        setPadding(10, 10, 10, 10)
     }
 
     var isOpen = false
@@ -39,8 +33,7 @@ class BallMenu(private val context: Context, private val isDark: Boolean, privat
         val params = FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { gravity = Gravity.BOTTOM or Gravity.END }
-
+        )
         view.addView(menuBox, params)
     }
 
@@ -48,16 +41,26 @@ class BallMenu(private val context: Context, private val isDark: Boolean, privat
     fun setOnSettings(cb: () -> Unit) { onSettings = cb }
 
     fun show(anchorX: Float, anchorY: Float, ballSize: Int) {
+        val isDark = SettingsManager(context).isDark()
+        val bgColor = if (isDark) Color.parseColor("#1F1F1F") else Color.WHITE
+        val textColor = if (isDark) Color.WHITE else Color.BLACK
+
+        menuBox.background = GradientDrawable().apply {
+            setColor(bgColor)
+            cornerRadius = 48f
+            setStroke(3, if (isDark) Color.parseColor("#3A3A3A") else Color.parseColor("#E0E0E0"))
+        }
+
         menuBox.removeAllViews()
 
-        menuBox.addView(makeItem(R.drawable.ic_carton, "دانلودها") {
+        menuBox.addView(makeItem(android.R.drawable.stat_sys_download, "دانلودها", textColor, isDark) {
             hide()
             onDownloads?.invoke()
         })
 
-        menuBox.addView(makeDivider())
+        menuBox.addView(makeDivider(isDark))
 
-        menuBox.addView(makeItem(android.R.drawable.ic_menu_manage, "تنظیمات") {
+        menuBox.addView(makeItem(android.R.drawable.ic_menu_manage, "تنظیمات", textColor, isDark) {
             hide()
             onSettings?.invoke()
         })
@@ -94,23 +97,22 @@ class BallMenu(private val context: Context, private val isDark: Boolean, privat
         isOpen = false
     }
 
-    private fun makeItem(iconRes: Int, label: String, onClick: () -> Unit): LinearLayout {
-        val textColor = if (isDark) Color.WHITE else Color.BLACK
+    private fun makeItem(iconRes: Int, label: String, textColor: Int, isDark: Boolean, onClick: () -> Unit): LinearLayout {
         return LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(30, 26, 30, 26)
+            setPadding(50, 40, 60, 40)
             background = GradientDrawable().apply {
                 setColor(Color.TRANSPARENT)
-                cornerRadius = 30f
+                cornerRadius = 35f
             }
             setOnClickListener { onClick() }
 
             addView(ImageView(context).apply {
                 setImageResource(iconRes)
                 setColorFilter(accent)
-                layoutParams = LinearLayout.LayoutParams(60, 60).apply {
-                    marginEnd = 20
+                layoutParams = LinearLayout.LayoutParams(58, 58).apply {
+                    marginEnd = 30
                 }
             })
 
@@ -123,16 +125,15 @@ class BallMenu(private val context: Context, private val isDark: Boolean, privat
         }
     }
 
-    private fun makeDivider(): View {
+    private fun makeDivider(isDark: Boolean): View {
         return View(context).apply {
             layoutParams = LinearLayout.LayoutParams(-1, 2).apply {
-                // ⭐ این دو خط اصلاح شدن
                 topMargin = 4
                 bottomMargin = 4
-                marginStart = 30
-                marginEnd = 30
+                marginStart = 40
+                marginEnd = 40
             }
-            setBackgroundColor(Color.parseColor("#22888888"))
+            setBackgroundColor(if (isDark) Color.parseColor("#333333") else Color.parseColor("#E0E0E0"))
         }
     }
 }
