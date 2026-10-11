@@ -44,6 +44,7 @@ class BallMenu(private val context: Context, private val accentProvider: () -> I
 
     fun show(anchorX: Float, anchorY: Float, ballSize: Int) {
         val isDark = SettingsManager(context).isDark()
+        val accent = accentProvider()
         val bgColor = if (isDark) Color.parseColor("#1F1F1F") else Color.WHITE
         val textColor = if (isDark) Color.WHITE else Color.parseColor("#222222")
 
@@ -55,14 +56,14 @@ class BallMenu(private val context: Context, private val accentProvider: () -> I
 
         menuBox.removeAllViews()
 
-        menuBox.addView(makeItem(android.R.drawable.stat_sys_download, "دانلودها", textColor) {
+        menuBox.addView(makeItem(android.R.drawable.stat_sys_download, "دانلودها", textColor, accent) {
             hide()
             onDownloads?.invoke()
         })
 
         menuBox.addView(makeDivider(isDark))
 
-        menuBox.addView(makeItem(android.R.drawable.ic_menu_manage, "تنظیمات", textColor) {
+        menuBox.addView(makeItem(android.R.drawable.ic_menu_manage, "تنظیمات", textColor, accent) {
             hide()
             onSettings?.invoke()
         })
@@ -75,16 +76,11 @@ class BallMenu(private val context: Context, private val accentProvider: () -> I
             val margin = dp(12).toFloat()
             val gap = dp(8).toFloat()
 
-            // موقعیت افقی: راست‌چین نسبت به توپ
             var x = anchorX + ballSize - menuW
-            // اگه از چپ زد بیرون، بچسبون به لبه
             if (x < margin) x = margin
-            // اگه از راست زد بیرون
             if (x + menuW > screenW - margin) x = screenW - menuW - margin
 
-            // موقعیت عمودی: بالای توپ
             var y = anchorY - menuH - gap
-            // اگه از بالا زد بیرون، برو پایین توپ
             if (y < margin) y = anchorY + ballSize + gap
 
             menuBox.x = x
@@ -114,7 +110,7 @@ class BallMenu(private val context: Context, private val accentProvider: () -> I
         isOpen = false
     }
 
-    private fun makeItem(iconRes: Int, label: String, textColor: Int, onClick: () -> Unit): LinearLayout {
+    private fun makeItem(iconRes: Int, label: String, textColor: Int, accent: Int, onClick: () -> Unit): LinearLayout {
         return LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
