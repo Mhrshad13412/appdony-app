@@ -21,10 +21,19 @@
             android:name=".MainActivity"
             android:exported="true"
             android:label="اپدونی"
+            android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|keyboardHidden">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- ⭐ دیپ‌لینک برای appdony.ir -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="appdony.ir" />
+                <data android:scheme="https" android:host="www.appdony.ir" />
             </intent-filter>
         </activity>
 
