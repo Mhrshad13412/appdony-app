@@ -53,14 +53,14 @@ class MainActivity : AppCompatActivity() {
         splashView = FrameLayout(this).apply {
             setBackgroundColor(splashBg)
         }
-        val loader = SpinnerLoader(this, isDark, 30f)  // ⭐ ضخامت ۳۰
+        val loader = SpinnerLoader(this, isDark, 30f)
         val loaderParams = FrameLayout.LayoutParams(280, 280)
         loaderParams.gravity = Gravity.CENTER
         splashView.addView(loader, loaderParams)
 
-        // ============ 🌟 لودینگ کوچیک گوشه بالا راست (جایگزین نوار سبز) ============
-        miniLoader = SpinnerLoader(this, isDark, 8f)  // ضخامت نازک‌تر برای کوچیکه
-        val miniParams = FrameLayout.LayoutParams(70, 70)
+        // ============ لودینگ کوچیک گوشه بالا راست (مثل اصلی) ============
+        miniLoader = SpinnerLoader(this, isDark, 18f)
+        val miniParams = FrameLayout.LayoutParams(110, 110)
         miniParams.gravity = Gravity.TOP or Gravity.END
         miniParams.topMargin = 30
         miniParams.rightMargin = 30
@@ -152,7 +152,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ============ لودینگ دایره‌ای — ضخامت قابل تنظیم ============
+    // ============ لودینگ دایره‌ای ============
     class SpinnerLoader(context: Context, private val isDark: Boolean, private val strokeW: Float) : View(context) {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
@@ -201,6 +201,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ============ تزریق CSS ============
     private fun injectCustomCSS() {
         val js = """
             (function() {
