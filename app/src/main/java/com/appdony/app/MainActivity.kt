@@ -37,7 +37,7 @@ class MainActivity : AppCompatActivity() {
         val isDark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         val splashBg = if (isDark) Color.parseColor("#001C1A") else Color.parseColor("#DFF5F2")
 
-        // ============ SPLASH با لودینگ دایره‌ای ============
+        // ============ SPLASH ============
         splashView = FrameLayout(this).apply {
             setBackgroundColor(splashBg)
         }
@@ -62,10 +62,6 @@ class MainActivity : AppCompatActivity() {
                 setLayerType(View.LAYER_TYPE_HARDWARE, null)
             }
             webViewClient = object : WebViewClient() {
-                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                    super.onPageStarted(view, url, favicon)
-                    // بدون animation برای رفع سفیدی
-                }
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
                     injectCustomCSS()
@@ -79,7 +75,6 @@ class MainActivity : AppCompatActivity() {
         root.addView(webView, FrameLayout.LayoutParams(-1, -1))
         setContentView(root)
 
-        // مخفی کردن Splash بعد از ۲.۵ ثانیه
         Handler(Looper.getMainLooper()).postDelayed({
             splashView.animate()
                 .alpha(0f)
@@ -93,7 +88,6 @@ class MainActivity : AppCompatActivity() {
                 .start()
         }, 2500)
 
-        // مدیریت دکمه برگشت
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (webView.canGoBack()) webView.goBack()
@@ -105,17 +99,14 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    // ============ لودینگ دایره‌ای با گرادیانت ============
+    // ============ لودینگ دایره‌ای ============
     class SpinnerLoader(context: Context, private val isDark: Boolean) : View(context) {
-
         private val strokeWidth = 18f
-
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
             strokeWidth = strokeWidth
         }
-
         private val rect = RectF()
         private val colorMain = if (isDark) Color.parseColor("#4DD0C7") else Color.parseColor("#0D7377")
         private val colorLight = if (isDark) Color.parseColor("#7FE5DD") else Color.parseColor("#2AA5A0")
@@ -148,11 +139,9 @@ class MainActivity : AppCompatActivity() {
             val cy = height / 2f
             val r = (minOf(width, height) - strokeWidth) / 2f
             rect.set(cx - r, cy - r, cx + r, cy + r)
-            paint.shader = SweepGradient(
-                cx, cy,
+            paint.shader = SweepGradient(cx, cy,
                 intArrayOf(colorMain, colorLight, colorTransparent, colorMain),
-                floatArrayOf(0f, 0.35f, 0.75f, 1f)
-            )
+                floatArrayOf(0f, 0.35f, 0.75f, 1f))
             canvas.save()
             canvas.rotate(rotation, cx, cy)
             canvas.drawArc(rect, 0f, sweep, false, paint)
@@ -168,7 +157,13 @@ class MainActivity : AppCompatActivity() {
                 if (old) old.remove();
 
                 var css = `
-                    /* ===== فقط دکمه‌های اصلی — نه نوار پایین، نه نوار بالا ===== */
+                    /* ===== 🌟 حذف افکت آبی/شفاف لمس روی همه چیز ===== */
+                    * {
+                        -webkit-tap-highlight-color: transparent !important;
+                        -webkit-touch-callout: none !important;
+                    }
+
+                    /* ===== دکمه‌های اصلی سایت ===== */
                     button:not(.bottom-nav-item):not(.device-chip):not(.cat-link),
                     input[type="submit"],
                     input[type="button"],
@@ -181,7 +176,6 @@ class MainActivity : AppCompatActivity() {
                         font-weight: 600 !important;
                         transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
                                     box-shadow 0.25s ease !important;
-                        -webkit-tap-highlight-color: transparent !important;
                     }
                     button:not(.bottom-nav-item):not(.device-chip):not(.cat-link):active,
                     input[type="submit"]:active,
@@ -189,21 +183,51 @@ class MainActivity : AppCompatActivity() {
                     .elementor-button:active,
                     a.btn-install:active {
                         transform: scale(0.95) !important;
-                        box-shadow: 0 2px 6px rgba(13, 115, 119, 0.3) !important;
                     }
 
-                    /* ===== نوار پایین — دست نزن ===== */
-                    .bottom-nav-item {
-                        border-radius: 12px !important;
-                        transition: background-color 0.25s ease, transform 0.25s ease !important;
+                    /* ===== 🌟 نوار پایین — حذف کامل افکت لمس آبی ===== */
+                    .bottom-nav,
+                    .bottom-nav *,
+                    .bottom-nav-item,
+                    .bottom-nav-item * {
+                        -webkit-tap-highlight-color: transparent !important;
+                        outline: none !important;
                     }
+                    .bottom-nav a,
+                    .bottom-nav-item {
+                        background-color: transparent !important;
+                        transition: background-color 0.25s ease !important;
+                    }
+                    .bottom-nav a:active,
                     .bottom-nav-item:active {
-                        transform: scale(0.95) !important;
+                        background-color: transparent !important;
+                    }
+
+                    /* ===== 🌟 حالت انتخاب‌شده (تب فعال) — بیضی/کپسولی سبز ===== */
+                    .bottom-nav .active,
+                    .bottom-nav-item.active,
+                    .bottom-nav a.active,
+                    .bottom-nav a[aria-current="page"],
+                    .bottom-nav li.active > a {
+                        background-color: rgba(13, 115, 119, 0.12) !important;
+                        border-radius: 50px !important;
+                        color: #0D7377 !important;
+                        box-shadow: none !important;
+                        padding: 6px 20px !important;
+                    }
+                    .bottom-nav .active i,
+                    .bottom-nav .active svg,
+                    .bottom-nav .active span,
+                    .bottom-nav-item.active i,
+                    .bottom-nav-item.active span {
+                        color: #0D7377 !important;
+                        fill: #0D7377 !important;
                     }
 
                     /* ===== نوار دسته‌بندی بالا ===== */
                     .cat-link {
-                        transition: color 0.25s ease, border-color 0.25s ease !important;
+                        -webkit-tap-highlight-color: transparent !important;
+                        outline: none !important;
                     }
 
                     /* ===== اینپوت سرچ ===== */
