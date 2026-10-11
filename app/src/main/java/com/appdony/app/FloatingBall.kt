@@ -15,11 +15,11 @@ import android.widget.LinearLayout
 import android.widget.TextView
 
 class FloatingBall(
-    context: Context,
-    private val accent: Int,
+    private val context: Context,
+    private val accentProvider: () -> Int,
     private val onTap: () -> Unit
 ) {
-
+    
     val size = 120
     val view: FrameLayout = FrameLayout(context)
 
