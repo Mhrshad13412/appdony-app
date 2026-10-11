@@ -24,7 +24,8 @@ class DownloadPanel(
     private val context: Context,
     private val isDark: Boolean,
     private val accent: Int,
-    private val helper: DownloadHelper
+    private val helper: DownloadHelper,
+    private val onBadgeChange: (Int) -> Unit
 ) {
 
     val view = FrameLayout(context).apply {
@@ -181,7 +182,8 @@ class DownloadPanel(
             gravity = Gravity.CENTER_HORIZONTAL
         })
 
-        helper.getIcon(item.id)?.let { loadImageAsync(it, iconView) }
+        val iconUrl = item.savedIconUrl?.takeIf { it.isNotEmpty() } ?: helper.getIcon(item.id)
+        iconUrl?.let { loadImageAsync(it, iconView) }
 
         box.addView(TextView(context).apply {
             text = item.title
@@ -194,21 +196,24 @@ class DownloadPanel(
             setPadding(0, 14, 0, 0)
         }, LinearLayout.LayoutParams(-1, -2))
 
+        val statusText = when {
+            item.isCancelled -> "لغو شده — برای شروع مجدد بزن"
+            item.status == DownloadManager.STATUS_RUNNING -> {
+                val pct = if (item.total > 0) (item.downloaded * 100 / item.total) else 0
+                "در حال دانلود  $pct%   (${helper.formatSize(item.downloaded)} / ${helper.formatSize(item.total)})"
+            }
+            item.status == DownloadManager.STATUS_SUCCESSFUL -> "کامل شد  ${helper.formatSize(item.total)}"
+            item.status == DownloadManager.STATUS_FAILED -> "خطا در دانلود"
+            item.status == DownloadManager.STATUS_PAUSED -> "متوقف"
+            else -> "در انتظار"
+        }
+
         box.addView(TextView(context).apply {
+            text = statusText
             textSize = 13f
             setPadding(0, 10, 0, 16)
             setTextColor(accent)
             gravity = Gravity.CENTER
-            text = when (item.status) {
-                DownloadManager.STATUS_RUNNING -> {
-                    val pct = if (item.total > 0) (item.downloaded * 100 / item.total) else 0
-                    "در حال دانلود  $pct%   (${helper.formatSize(item.downloaded)} / ${helper.formatSize(item.total)})"
-                }
-                DownloadManager.STATUS_SUCCESSFUL -> "کامل شد  ${helper.formatSize(item.total)}"
-                DownloadManager.STATUS_FAILED -> "خطا در دانلود"
-                DownloadManager.STATUS_PAUSED -> "متوقف"
-                else -> "در انتظار"
-            }
         }, LinearLayout.LayoutParams(-1, -2))
 
         val btnRow = LinearLayout(context).apply {
@@ -216,17 +221,60 @@ class DownloadPanel(
             gravity = Gravity.CENTER
         }
 
-        if (item.status == DownloadManager.STATUS_SUCCESSFUL && item.localUri != null) {
-            btnRow.addView(makeBtn("نصب", accent) { installApk(item.localUri) })
-            btnRow.addView(View(context).apply {
-                layoutParams = LinearLayout.LayoutParams(14, 1)
-            })
+        // ⭐ دکمه‌ها بر اساس وضعیت
+        when {
+            // لغو شده → شروع مجدد + حذف کامل
+            item.isCancelled -> {
+                btnRow.addView(makeBtn("شروع مجدد", accent) {
+                    val newId = helper.restartCancelled(item.id)
+                    if (newId > 0) {
+                        onBadgeChange(helper.getActiveCount())
+                        refresh()
+                        Toast.makeText(context, "شروع مجدد شد", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "خطا در شروع مجدد", Toast.LENGTH_SHORT).show()
+                    }
+                })
+                btnRow.addView(View(context).apply {
+                    layoutParams = LinearLayout.LayoutParams(14, 1)
+                })
+                btnRow.addView(makeBtn("حذف", Color.parseColor("#E53935")) {
+                    helper.removePermanently(item.id)
+                    onBadgeChange(helper.getActiveCount())
+                    refresh()
+                })
+            }
+            // کامل شده → نصب + لغو(حذف فایل)
+            item.status == DownloadManager.STATUS_SUCCESSFUL && item.localUri != null -> {
+                btnRow.addView(makeBtn("نصب", accent) { installApk(item.localUri) })
+                btnRow.addView(View(context).apply {
+                    layoutParams = LinearLayout.LayoutParams(14, 1)
+                })
+                btnRow.addView(makeBtn("حذف", Color.parseColor("#E53935")) {
+                    helper.cancel(item.id, item.title, item.localUri ?: "", helper.getIcon(item.id))
+                    onBadgeChange(helper.getActiveCount())
+                    refresh()
+                })
+            }
+            // در حال دانلود → لغو
+            item.status == DownloadManager.STATUS_RUNNING || item.status == DownloadManager.STATUS_PENDING -> {
+                btnRow.addView(makeBtn("لغو", Color.parseColor("#FF9800")) {
+                    helper.cancel(item.id, item.title, "", helper.getIcon(item.id))
+                    onBadgeChange(helper.getActiveCount())
+                    refresh()
+                    Toast.makeText(context, "لغو شد — می‌تونی بعداً ادامه بدی", Toast.LENGTH_SHORT).show()
+                })
+            }
+            // خطا خورده → حذف
+            else -> {
+                btnRow.addView(makeBtn("حذف", Color.parseColor("#E53935")) {
+                    helper.removePermanently(item.id)
+                    onBadgeChange(helper.getActiveCount())
+                    refresh()
+                })
+            }
         }
-        btnRow.addView(makeBtn("حذف", Color.parseColor("#E53935")) {
-            helper.remove(item.id)
-            refresh()
-            Toast.makeText(context, "حذف شد", Toast.LENGTH_SHORT).show()
-        })
+
         box.addView(btnRow, LinearLayout.LayoutParams(-1, -2))
 
         return outer
