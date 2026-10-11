@@ -172,27 +172,42 @@ class MainActivity : AppCompatActivity() {
                     lastClickY = y
                     lastClickTime = System.currentTimeMillis()
                 }
+
                 @JavascriptInterface
                 fun onNavStart() { runOnUiThread { showLoader() } }
+
                 @JavascriptInterface
                 fun onContentReady() { runOnUiThread { hideLoader() } }
             }, "AppdonyBridge")
 
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                    super.onPageStarted(view, url, favicon); showLoader()
+                    super.onPageStarted(view, url, favicon)
+                    showLoader()
                 }
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
-                    injectCustomCSS(); injectScript(); applyThemeCss(); hideLoader()
+                    injectCustomCSS()
+                    injectScript()
+                    applyThemeCss()
+                    applyAccent()
+                    hideLoader()
                 }
                 override fun onPageCommitVisible(view: WebView?, url: String?) {
                     super.onPageCommitVisible(view, url)
-                    injectCustomCSS(); injectScript(); applyThemeCss(); hideLoader()
+                    injectCustomCSS()
+                    injectScript()
+                    applyThemeCss()
+                    applyAccent()
+                    hideLoader()
                 }
                 override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                     super.doUpdateVisitedHistory(view, url, isReload)
-                    injectCustomCSS(); injectScript(); applyThemeCss(); hideLoader()
+                    injectCustomCSS()
+                    injectScript()
+                    applyThemeCss()
+                    applyAccent()
+                    hideLoader()
                 }
                 override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                     super.onReceivedError(view, request, error)
@@ -268,30 +283,41 @@ class MainActivity : AppCompatActivity() {
         window.statusBarColor = splashBg
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = !isDark
         applyThemeCss()
+        applyAccent()
         ball.updateColor()
     }
 
+    // ⭐ اعمال رنگ تم به سایت
     private fun applyAccent() {
         ball.updateColor()
+        val accentHex = String.format("#%06X", 0xFFFFFF and settingsManager.getAccent())
+        webView.evaluateJavascript(
+            "if(window._appdonySetAccent) window._appdonySetAccent('$accentHex');",
+            null
+        )
     }
 
+    // ⭐ حالت شب/روز + رنگ تم
     private fun applyThemeCss() {
-        val css = if (settingsManager.isDark()) {
+        val accentHex = String.format("#%06X", 0xFFFFFF and settingsManager.getAccent())
+        val darkCss = if (settingsManager.isDark()) {
             "html { filter: invert(1) hue-rotate(180deg) !important; background: #0f0f0f !important; } " +
             "img, video, iframe, canvas, svg, [style*='background-image'] { filter: invert(1) hue-rotate(180deg) !important; }"
         } else ""
 
-        val escaped = css.replace("\\", "\\\\").replace("\"", "\\\"")
+        val escaped = darkCss.replace("\\", "\\\\").replace("\"", "\\\"")
 
         val js = """
             (function() {
                 var old = document.getElementById('appdony-theme-style');
                 if (old) old.remove();
-                if ("$escaped".length === 0) return;
-                var s = document.createElement('style');
-                s.id = 'appdony-theme-style';
-                s.appendChild(document.createTextNode("$escaped"));
-                (document.head || document.documentElement).appendChild(s);
+                if ("$escaped".length > 0) {
+                    var s = document.createElement('style');
+                    s.id = 'appdony-theme-style';
+                    s.appendChild(document.createTextNode("$escaped"));
+                    (document.head || document.documentElement).appendChild(s);
+                }
+                if (window._appdonySetAccent) window._appdonySetAccent('$accentHex');
             })();
         """.trimIndent()
 
