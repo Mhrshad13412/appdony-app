@@ -25,8 +25,8 @@ import java.util.concurrent.ConcurrentHashMap
 
 class DownloadPanel(
     private val context: Context,
-    private val isDark: Boolean,
-    private val accent: Int,
+    private val isDarkProvider: () -> Boolean,
+    private val accentProvider: () -> Int,
     private val helper: DownloadHelper,
     private val onBadgeChange: (Int) -> Unit
 ) {
