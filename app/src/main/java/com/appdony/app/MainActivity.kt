@@ -19,7 +19,9 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
@@ -47,12 +49,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private lateinit var splashView: FrameLayout
     private lateinit var miniLoader: SpinnerLoader
-    private lateinit var floatingBall: LinearLayout
+    private lateinit var ballWrapper: FrameLayout
     private lateinit var downloadPanel: FrameLayout
     private lateinit var downloadsList: LinearLayout
     private lateinit var badgeView: TextView
     private lateinit var downloadManager: DownloadManager
     private var panelOpen = false
+    private var isDark = false
+    private var accent = 0
 
     private val refreshHandler = Handler(Looper.getMainLooper())
     private val refreshRunnable = object : Runnable {
@@ -61,6 +65,9 @@ class MainActivity : AppCompatActivity() {
             refreshHandler.postDelayed(this, 1000)
         }
     }
+
+    // ⭐ رانبل برای نمایش لودینگ فقط اگه لود کند باشه
+    private var showLoaderRunnable: Runnable? = null
 
     private val downloadCompleteReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -74,16 +81,15 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val isDark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        isDark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         val splashBg = if (isDark) Color.parseColor("#001C1A") else Color.WHITE
-        val accent = if (isDark) Color.parseColor("#4DD0C7") else Color.parseColor("#0D7377")
+        accent = if (isDark) Color.parseColor("#4DD0C7") else Color.parseColor("#0D7377")
 
         window.statusBarColor = splashBg
         val wic = WindowInsetsControllerCompat(window, window.decorView)
         wic.isAppearanceLightStatusBars = !isDark
 
         clearCacheIfVersionChanged()
-
         downloadManager = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -111,24 +117,25 @@ class MainActivity : AppCompatActivity() {
         val miniParams = FrameLayout.LayoutParams(180, 180).apply { gravity = Gravity.CENTER }
         miniLoader.visibility = View.GONE
 
-        // ============ FLOATING BALL (جعبه دانلود) ============
-        floatingBall = LinearLayout(this).apply {
+        // ============ 🎈 توپ شناور (کارتونی مربع گِرد، بدون سایه) ============
+        ballWrapper = FrameLayout(this)
+        val ballSize = 120
+
+        val ballBox = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = 28f
                 setColor(accent)
-                setStroke(4, Color.parseColor("#FFFFFF"))
             }
-            elevation = 20f
         }
         val ballIcon = ImageView(this).apply {
-            setImageResource(R.drawable.ic_download_box)
+            setImageResource(R.drawable.ic_carton)
             layoutParams = LinearLayout.LayoutParams(70, 70)
         }
-        floatingBall.addView(ballIcon)
+        ballBox.addView(ballIcon)
 
-        // Badge (شماره دانلودهای فعال)
         badgeView = TextView(this).apply {
             textSize = 11f
             setTextColor(Color.WHITE)
@@ -140,20 +147,13 @@ class MainActivity : AppCompatActivity() {
             visibility = View.GONE
         }
 
-        val ballContainer = FrameLayout(this).apply {
-            addView(floatingBall, FrameLayout.LayoutParams(140, 140))
-            addView(badgeView, FrameLayout.LayoutParams(45, 45).apply {
-                gravity = Gravity.TOP or Gravity.END
-            })
-        }
+        ballWrapper.addView(ballBox, FrameLayout.LayoutParams(ballSize, ballSize))
+        ballWrapper.addView(badgeView, FrameLayout.LayoutParams(40, 40).apply {
+            gravity = Gravity.TOP or Gravity.END
+        })
 
-        val ballParams = FrameLayout.LayoutParams(150, 150).apply {
-            gravity = Gravity.BOTTOM or Gravity.END
-            bottomMargin = 280
-            rightMargin = 40
-        }
-        ballContainer.setOnClickListener {
-            if (panelOpen) closePanel() else openPanel()
+        val ballWrapperParams = FrameLayout.LayoutParams(ballSize, ballSize).apply {
+            gravity = Gravity.TOP or Gravity.START
         }
 
         // ============ DOWNLOAD PANEL ============
@@ -166,47 +166,46 @@ class MainActivity : AppCompatActivity() {
         val panelBox = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(if (isDark) Color.parseColor("#1A1A1A") else Color.WHITE)
-            setPadding(30, 40, 30, 30)
+            setPadding(24, 24, 24, 24)
         }
         val panelBoxParams = FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             (resources.displayMetrics.heightPixels * 0.7).toInt()
         ).apply { gravity = Gravity.BOTTOM }
 
+        // ⭐ نوار کشیدن (handle)
         val handle = View(this).apply {
             background = GradientDrawable().apply {
                 setColor(Color.parseColor("#888888"))
                 cornerRadius = 10f
             }
         }
-        panelBox.addView(handle, LinearLayout.LayoutParams(120, 8).apply {
+        panelBox.addView(handle, LinearLayout.LayoutParams(100, 6).apply {
             gravity = Gravity.CENTER_HORIZONTAL
-            bottomMargin = 20
+            bottomMargin = 16
         })
 
         val panelTitle = TextView(this).apply {
             text = "📥 دانلودها"
-            textSize = 22f
+            textSize = 20f
             setTextColor(if (isDark) Color.WHITE else Color.BLACK)
             gravity = Gravity.CENTER
-            setPadding(0, 10, 0, 20)
+            setPadding(0, 8, 0, 16)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
         }
         panelBox.addView(panelTitle)
 
         val scroll = ScrollView(this)
-        downloadsList = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-        }
+        downloadsList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scroll.addView(downloadsList)
         panelBox.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
         val closeBtn = TextView(this).apply {
             text = "بستن"
-            textSize = 16f
+            textSize = 15f
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
-            setPadding(0, 26, 0, 26)
+            setPadding(0, 20, 0, 20)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             background = GradientDrawable().apply {
                 setColor(accent)
@@ -214,7 +213,7 @@ class MainActivity : AppCompatActivity() {
             }
             setOnClickListener { closePanel() }
         }
-        panelBox.addView(closeBtn, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 20 })
+        panelBox.addView(closeBtn, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 16 })
 
         downloadPanel.addView(panelBox, panelBoxParams)
 
@@ -241,21 +240,26 @@ class MainActivity : AppCompatActivity() {
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                     super.onPageStarted(view, url, favicon)
-                    miniLoader.visibility = View.VISIBLE
+                    // ⭐ لودینگ فقط اگه لود بیش از 500ms طول بکشه
+                    showLoaderRunnable = Runnable {
+                        miniLoader.visibility = View.VISIBLE
+                        ballWrapper.visibility = View.GONE
+                    }
+                    Handler(Looper.getMainLooper()).postDelayed(showLoaderRunnable!!, 500)
                 }
+
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        miniLoader.visibility = View.GONE
-                    }, 300)
+                    showLoaderRunnable?.let { Handler(Looper.getMainLooper()).removeCallbacks(it) }
+                    miniLoader.visibility = View.GONE
+                    ballWrapper.visibility = View.VISIBLE
                     injectCustomCSS()
                 }
             }
 
             webChromeClient = WebChromeClient()
 
-            // ⭐ DownloadListener - هر دامنه‌ای رو می‌گیره!
-            setDownloadListener { url, userAgent, contentDisposition, mimetype, contentLength ->
+            setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
                 startDownload(url, userAgent, contentDisposition, mimetype)
             }
 
@@ -267,8 +271,18 @@ class MainActivity : AppCompatActivity() {
         root.addView(webView, FrameLayout.LayoutParams(-1, -1))
         root.addView(miniLoader, miniParams)
         root.addView(downloadPanel, FrameLayout.LayoutParams(-1, -1))
-        root.addView(ballContainer, ballParams)
+        root.addView(ballWrapper, ballWrapperParams)
         setContentView(root)
+
+        // ⭐ پوزیشن اولیه توپ (بعد از layout)
+        root.post {
+            val margin = 40f
+            val bottomMargin = 380f
+            ballWrapper.x = root.width - ballSize - margin
+            ballWrapper.y = root.height - ballSize - bottomMargin
+        }
+
+        setupDraggableBall()
 
         updateBadge()
 
@@ -281,9 +295,8 @@ class MainActivity : AppCompatActivity() {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (panelOpen) {
-                    closePanel()
-                } else if (webView.canGoBack()) webView.goBack()
+                if (panelOpen) closePanel()
+                else if (webView.canGoBack()) webView.goBack()
                 else {
                     isEnabled = false
                     onBackPressedDispatcher.onBackPressed()
@@ -292,23 +305,65 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    // ============ شروع دانلود از هر دامنه‌ای ============
+    // ⭐ توپ قابل جابه‌جایی (Drag) + ضربه برای باز کردن پنل
+    private fun setupDraggableBall() {
+        var downX = 0f
+        var downY = 0f
+        var startX = 0f
+        var startY = 0f
+        var isDragging = false
+        val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
+
+        ballWrapper.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = event.rawX
+                    downY = event.rawY
+                    startX = v.x
+                    startY = v.y
+                    isDragging = false
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.rawX - downX
+                    val dy = event.rawY - downY
+                    if (!isDragging && (Math.abs(dx) > touchSlop || Math.abs(dy) > touchSlop)) {
+                        isDragging = true
+                        v.animate().scaleX(1.08f).scaleY(1.08f).setDuration(100).start()
+                    }
+                    if (isDragging) {
+                        val parent = v.parent as View
+                        val newX = (startX + dx).coerceIn(0f, (parent.width - v.width).toFloat())
+                        val newY = (startY + dy).coerceIn(0f, (parent.height - v.height).toFloat())
+                        v.x = newX
+                        v.y = newY
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(100).start()
+                    if (!isDragging) {
+                        if (panelOpen) closePanel() else openPanel()
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
     private fun startDownload(url: String, userAgent: String?, contentDisposition: String?, mimetype: String?) {
         try {
-            // اگه لینک data: یا blob: بود، از JS جواب بگیر
             if (url.startsWith("blob:") || url.startsWith("data:")) {
                 Toast.makeText(this, "این نوع لینک پشتیبانی نمی‌شه", Toast.LENGTH_SHORT).show()
                 return
             }
-
             val uri = Uri.parse(url)
             val request = DownloadManager.Request(uri)
 
-            // کوکی‌ها برای حفظ نشست
             val cookies = CookieManager.getInstance().getCookie(url)
             if (cookies != null) request.addRequestHeader("Cookie", cookies)
             if (userAgent != null) request.addRequestHeader("User-Agent", userAgent)
-            // Referer برای بعضی هاست‌ها لازمه
             request.addRequestHeader("Referer", "https://appdony.ir/")
 
             val fileName = URLUtil.guessFileName(url, contentDisposition, mimetype)
@@ -322,18 +377,13 @@ class MainActivity : AppCompatActivity() {
             downloadManager.enqueue(request)
             Toast.makeText(this, "📥 دانلود شروع شد:\n$fileName", Toast.LENGTH_LONG).show()
             updateBadge()
-            if (!panelOpen) {
-                Toast.makeText(this, "برای دیدن پیشرفت، روی توپ پایین بزن", Toast.LENGTH_LONG).show()
-            }
         } catch (e: Exception) {
             Toast.makeText(this, "خطا: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
-    // ============ Badge شمارنده ============
     private fun updateBadge() {
-        val query = DownloadManager.Query()
-        val cursor = downloadManager.query(query)
+        val cursor = downloadManager.query(DownloadManager.Query())
         var activeCount = 0
         while (cursor.moveToNext()) {
             val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
@@ -368,8 +418,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun refreshDownloads() {
         downloadsList.removeAllViews()
-        val query = DownloadManager.Query()
-        val cursor: Cursor = downloadManager.query(query)
+        val cursor: Cursor = downloadManager.query(DownloadManager.Query())
 
         val items = mutableListOf<View>()
         while (cursor.moveToNext()) {
@@ -386,7 +435,7 @@ class MainActivity : AppCompatActivity() {
         if (items.isEmpty()) {
             val empty = TextView(this).apply {
                 text = "هنوز دانلودی نداری 📭"
-                textSize = 16f
+                textSize = 15f
                 gravity = Gravity.CENTER
                 setPadding(0, 60, 0, 60)
                 setTextColor(Color.GRAY)
@@ -399,23 +448,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun createDownloadItem(id: Long, title: String, status: Int, downloaded: Long, total: Long, localUri: String?): View {
-        val isDark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-        val accent = if (isDark) Color.parseColor("#4DD0C7") else Color.parseColor("#0D7377")
         val textColor = if (isDark) Color.WHITE else Color.BLACK
+        val cardBg = if (isDark) Color.parseColor("#2A2A2A") else Color.parseColor("#F5F5F5")
 
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(24, 24, 24, 24)
+            setPadding(20, 20, 20, 20)
             background = GradientDrawable().apply {
-                setColor(if (isDark) Color.parseColor("#2A2A2A") else Color.parseColor("#F5F5F5"))
+                setColor(cardBg)
                 cornerRadius = 24f
             }
         }
-        box.layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 16 }
+        box.layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 12 }
 
         val nameTv = TextView(this).apply {
             text = title
-            textSize = 15f
+            textSize = 14f
             setTextColor(textColor)
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
@@ -424,8 +472,8 @@ class MainActivity : AppCompatActivity() {
         box.addView(nameTv)
 
         val statusTv = TextView(this).apply {
-            textSize = 13f
-            setPadding(0, 10, 0, 12)
+            textSize = 12f
+            setPadding(0, 8, 0, 10)
             setTextColor(accent)
             text = when (status) {
                 DownloadManager.STATUS_RUNNING -> {
@@ -448,9 +496,9 @@ class MainActivity : AppCompatActivity() {
         if (status == DownloadManager.STATUS_SUCCESSFUL && localUri != null) {
             val installBtn = TextView(this).apply {
                 text = "  نصب  "
-                textSize = 14f
+                textSize = 13f
                 setTextColor(Color.WHITE)
-                setPadding(40, 16, 40, 16)
+                setPadding(35, 14, 35, 14)
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
                 background = GradientDrawable().apply {
                     setColor(accent)
@@ -459,13 +507,14 @@ class MainActivity : AppCompatActivity() {
                 setOnClickListener { installApk(localUri) }
             }
             btnRow.addView(installBtn)
+            btnRow.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(12, 1) })
         }
 
         val deleteBtn = TextView(this).apply {
             text = "  حذف  "
-            textSize = 14f
+            textSize = 13f
             setTextColor(Color.WHITE)
-            setPadding(40, 16, 40, 16)
+            setPadding(35, 14, 35, 14)
             background = GradientDrawable().apply {
                 setColor(Color.parseColor("#E53935"))
                 cornerRadius = 30f
@@ -484,31 +533,25 @@ class MainActivity : AppCompatActivity() {
 
     private fun installApk(localUri: String) {
         try {
-            // اگه اجازه نصب نداریم، کاربر رو ببر به تنظیمات
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 if (!packageManager.canRequestPackageInstalls()) {
                     Toast.makeText(this, "لطفاً اجازه نصب از این منبع را فعال کنید", Toast.LENGTH_LONG).show()
-                    val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
-                        .setData(Uri.parse("package:$packageName"))
-                    startActivity(intent)
+                    startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+                        .setData(Uri.parse("package:$packageName")))
                     return
                 }
             }
-
             val uri = Uri.parse(localUri)
             val file = File(uri.path ?: return)
             val apkUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
-            } else {
-                uri
-            }
+            } else uri
 
-            val intent = Intent(Intent.ACTION_VIEW).apply {
+            startActivity(Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(apkUri, "application/vnd.android.package-archive")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            startActivity(intent)
+            })
         } catch (e: Exception) {
             Toast.makeText(this, "خطا در نصب: ${e.message}", Toast.LENGTH_LONG).show()
         }
@@ -535,9 +578,7 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) { -1 }
 
         if (savedVersion != currentVersion) {
-            WebView(this).apply {
-                clearCache(true); clearHistory(); clearFormData(); destroy()
-            }
+            WebView(this).apply { clearCache(true); clearHistory(); clearFormData(); destroy() }
             CookieManager.getInstance().removeAllCookies(null)
             CookieManager.getInstance().flush()
             WebStorage.getInstance().deleteAllData()
@@ -598,69 +639,44 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ⭐ حالا از فایل assets می‌خونیم
     private fun injectCustomCSS() {
-        val js = """
-            (function() {
-                var old = document.getElementById('appdony-custom-style');
-                if (old) old.remove();
-                var css = `
-                    * {
-                        -webkit-tap-highlight-color: transparent !important;
-                        -webkit-touch-callout: none !important;
-                    }
-                    button:not(.bottom-nav-item):not(.device-chip):not(.cat-link),
-                    input[type="submit"], input[type="button"],
-                    .elementor-button, a.btn-install,
-                    [class*="download-btn"], [class*="btn-download"] {
-                        border-radius: 20px !important;
-                        padding: 12px 26px !important;
-                        font-weight: 600 !important;
-                        transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
-                    }
-                    button:not(.bottom-nav-item):not(.device-chip):not(.cat-link):active,
-                    input[type="submit"]:active, .elementor-button:active, a.btn-install:active {
-                        transform: scale(0.95) !important;
-                    }
-                    .bottom-nav, .bottom-nav *, .bottom-nav-item, .bottom-nav-item * {
-                        -webkit-tap-highlight-color: transparent !important;
-                        outline: none !important;
-                    }
-                    .bottom-nav a, .bottom-nav-item { background-color: transparent !important; }
-                    .bottom-nav a:active, .bottom-nav-item:active { background-color: transparent !important; }
-                    .bottom-nav .active, .bottom-nav-item.active,
-                    .bottom-nav a.active, .bottom-nav a[aria-current="page"],
-                    .bottom-nav li.active > a {
-                        background-color: rgba(13, 115, 119, 0.12) !important;
-                        border-radius: 50px !important;
-                        color: #0D7377 !important;
-                        box-shadow: none !important;
-                        padding: 6px 20px !important;
-                        animation: appdonyPillIn 0.55s cubic-bezier(0.34, 1.4, 0.64, 1) !important;
-                    }
-                    @keyframes appdonyPillIn {
-                        0% { background-color: rgba(13, 115, 119, 0) !important; transform: scale(0.85); opacity: 0.4; }
-                        60% { background-color: rgba(13, 115, 119, 0.15) !important; transform: scale(1.03); opacity: 1; }
-                        100% { background-color: rgba(13, 115, 119, 0.12) !important; transform: scale(1); opacity: 1; }
-                    }
-                    .bottom-nav .active i, .bottom-nav .active svg, .bottom-nav .active span,
-                    .bottom-nav-item.active i, .bottom-nav-item.active span {
-                        color: #0D7377 !important;
-                        fill: #0D7377 !important;
-                    }
-                    .cat-link { -webkit-tap-highlight-color: transparent !important; }
-                    input[type="text"], input[type="search"], input[type="email"],
-                    input[type="password"], textarea { border-radius: 16px !important; }
-                    ::-webkit-scrollbar { width: 5px; height: 5px; }
-                    ::-webkit-scrollbar-thumb { background: rgba(13, 115, 119, 0.5); border-radius: 5px; }
-                    ::-webkit-scrollbar-track { background: transparent; }
-                `;
-                var style = document.createElement('style');
-                style.id = 'appdony-custom-style';
-                style.type = 'text/css';
-                style.appendChild(document.createTextNode(css));
-                document.head.appendChild(style);
-            })();
-        """.trimIndent()
-        webView.evaluateJavascript(js, null)
+        try {
+            val css = assets.open("style.css").bufferedReader().use { it.readText() }
+            val scriptJs = assets.open("script.js").bufferedReader().use { it.readText() }
+
+            val escapedCss = escapeForJs(css)
+            val injectJs = """
+                (function() {
+                    var old = document.getElementById('appdony-custom-style');
+                    if (old) old.remove();
+                    var style = document.createElement('style');
+                    style.id = 'appdony-custom-style';
+                    style.type = 'text/css';
+                    style.appendChild(document.createTextNode("$escapedCss"));
+                    document.head.appendChild(style);
+                    try { $scriptJs } catch(e) { console.log(e); }
+                })();
+            """.trimIndent()
+
+            webView.evaluateJavascript(injectJs, null)
+        } catch (e: Exception) {
+            Toast.makeText(this, "خطا در بارگذاری CSS: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun escapeForJs(s: String): String {
+        val sb = StringBuilder()
+        for (c in s) {
+            when (c) {
+                '\\' -> sb.append("\\\\")
+                '"' -> sb.append("\\\"")
+                '\n' -> sb.append("\\n")
+                '\r' -> sb.append("\\r")
+                '\t' -> sb.append("\\t")
+                else -> sb.append(c)
+            }
+        }
+        return sb.toString()
     }
 }
