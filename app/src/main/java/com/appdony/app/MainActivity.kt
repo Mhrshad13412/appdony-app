@@ -7,7 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.database.Cursor
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
@@ -63,6 +62,7 @@ class MainActivity : AppCompatActivity() {
     private var panelOpen = false
     private var isDark = false
     private var accent = 0
+    private var cssInjectedOnce = false
 
     private val refreshHandler = Handler(Looper.getMainLooper())
     private val refreshRunnable = object : Runnable {
@@ -80,12 +80,8 @@ class MainActivity : AppCompatActivity() {
             .start()
     }
 
-    // ⭐ مدیریت لودینگ با چند محافظ
     private var showLoaderRunnable: Runnable? = null
-    private val maxLoaderRunnable = Runnable {
-        // اگه بعد از 5 ثانیه هنوز لود می‌کنه، مخفی کن
-        hideLoader()
-    }
+    private val maxLoaderRunnable = Runnable { hideLoader() }
 
     private fun hideLoader() {
         showLoaderRunnable?.let { refreshHandler.removeCallbacks(it) }
@@ -95,14 +91,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showLoaderIfNeeded() {
-        // فقط اگه 400ms طول بکشه، لودینگ بیاد
         showLoaderRunnable = Runnable {
             miniLoader.visibility = View.VISIBLE
             ballWrapper.visibility = View.GONE
         }
         refreshHandler.postDelayed(showLoaderRunnable!!, 400)
-        // حداکثر 5 ثانیه نمایش داده بشه
-        refreshHandler.postDelayed(maxLoaderRunnable, 5000)
+        refreshHandler.postDelayed(maxLoaderRunnable, 4000)
     }
 
     private val downloadCompleteReceiver = object : BroadcastReceiver() {
@@ -289,7 +283,20 @@ class MainActivity : AppCompatActivity() {
                     injectCustomCSS()
                 }
 
-                // ⭐ اگه خطا داد، لودینگ رو مخفی کن
+                // ⭐ وقتی صفحه شروع به رندر کرد (قبل از کامل شدن)
+                override fun onPageCommitVisible(view: WebView?, url: String?) {
+                    super.onPageCommitVisible(view, url)
+                    hideLoader()
+                    injectCustomCSS()
+                }
+
+                // ⭐ وقتی URL عوض شد (برای AJAX)
+                override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+                    super.doUpdateVisitedHistory(view, url, isReload)
+                    hideLoader()
+                    injectCustomCSS()
+                }
+
                 override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                     super.onReceivedError(view, request, error)
                     if (request?.isForMainFrame == true) {
@@ -298,11 +305,11 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            // ⭐ لودینگ به محض رسیدن به 65% مخفی میشه
             webChromeClient = object : WebChromeClient() {
                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
                     super.onProgressChanged(view, newProgress)
-                    if (newProgress >= 65) {
+                    // ⭐ خیلی زود لودینگ مخفی میشه (40%)
+                    if (newProgress >= 40) {
                         hideLoader()
                     }
                 }
@@ -366,8 +373,6 @@ class MainActivity : AppCompatActivity() {
                 if (m && m.content) return m.content;
                 var m2 = document.querySelector('meta[name="twitter:image"]');
                 if (m2 && m2.content) return m2.content;
-                var m3 = document.querySelector('meta[property="og:image:url"]');
-                if (m3 && m3.content) return m3.content;
                 var link = document.querySelector('link[rel="apple-touch-icon"]');
                 if (link && link.href) return link.href;
                 var icon = document.querySelector('link[rel="icon"]');
@@ -510,7 +515,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun refreshDownloads() {
         downloadsList.removeAllViews()
-        val cursor: Cursor = downloadManager.query(DownloadManager.Query())
+        val cursor = downloadManager.query(DownloadManager.Query())
         val items = mutableListOf<View>()
         while (cursor.moveToNext()) {
             val id = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_ID))
@@ -538,7 +543,6 @@ class MainActivity : AppCompatActivity() {
         updateBadge()
     }
 
-    // ⭐ طرح جدید: آیکون وسط، عرض کم، فاصله از پایین
     private fun createDownloadItem(id: Long, title: String, status: Int, downloaded: Long, total: Long, localUri: String?): View {
         val textColor = if (isDark) Color.WHITE else Color.BLACK
         val cardBg = if (isDark) Color.parseColor("#2A2A2A") else Color.parseColor("#F5F5F5")
@@ -726,6 +730,7 @@ class MainActivity : AppCompatActivity() {
             CookieManager.getInstance().flush()
             WebStorage.getInstance().deleteAllData()
             prefs.edit().putInt("last_version", currentVersion).apply()
+            cssInjectedOnce = false
         }
     }
 
@@ -785,23 +790,66 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ⭐ تزریق CSS با MutationObserver — CSS همیشه می‌مونه!
     private fun injectCustomCSS() {
         try {
             val css = assets.open("style.css").bufferedReader().use { it.readText() }
             val scriptJs = assets.open("script.js").bufferedReader().use { it.readText() }
             val escapedCss = escapeForJs(css)
+
+            // ⭐ کد JS با MutationObserver که همیشه CSS رو تزریق می‌کنه
             val injectJs = """
                 (function() {
-                    var old = document.getElementById('appdony-custom-style');
-                    if (old) old.remove();
-                    var style = document.createElement('style');
-                    style.id = 'appdony-custom-style';
-                    style.type = 'text/css';
-                    style.appendChild(document.createTextNode("$escapedCss"));
-                    document.head.appendChild(style);
-                    try { $scriptJs } catch(e) { console.log(e); }
+                    // تابعی که CSS رو تزریق می‌کنه
+                    function injectCss() {
+                        if (document.getElementById('appdony-custom-style')) return;
+                        var style = document.createElement('style');
+                        style.id = 'appdony-custom-style';
+                        style.type = 'text/css';
+                        style.appendChild(document.createTextNode("$escapedCss"));
+                        var head = document.head || document.getElementsByTagName('head')[0];
+                        if (head) {
+                            head.appendChild(style);
+                        } else {
+                            document.documentElement.appendChild(style);
+                        }
+                    }
+
+                    // اولین تزریق
+                    injectCss();
+
+                    // اگه قبلاً observer نذاشتیم، الان بذار
+                    if (!window._appdonyObserver) {
+                        window._appdonyObserver = new MutationObserver(function(mutations) {
+                            // فقط اگه style حذف شده، دوباره تزریق کن
+                            if (!document.getElementById('appdony-custom-style')) {
+                                injectCss();
+                            }
+                        });
+                        window._appdonyObserver.observe(document.documentElement, {
+                            childList: true,
+                            subtree: true
+                        });
+                    }
+
+                    // یک فاصله‌ی دور به عنوان پشتیبان
+                    if (!window._appdonyInterval) {
+                        window._appdonyInterval = setInterval(function() {
+                            if (!document.getElementById('appdony-custom-style')) {
+                                injectCss();
+                            }
+                        }, 1500);
+                    }
+
+                    // اسکریپت لمسی رو هم اجرا کن
+                    try {
+                        $scriptJs
+                    } catch(e) {
+                        console.log('script error', e);
+                    }
                 })();
             """.trimIndent()
+
             webView.evaluateJavascript(injectJs, null)
         } catch (e: Exception) {
             Toast.makeText(this, "خطا در بارگذاری CSS: ${e.message}", Toast.LENGTH_SHORT).show()
