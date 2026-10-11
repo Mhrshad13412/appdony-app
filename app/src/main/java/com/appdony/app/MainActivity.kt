@@ -130,8 +130,6 @@ class MainActivity : AppCompatActivity() {
                 setSupportMultipleWindows(false)
                 allowFileAccess = true
                 allowContentAccess = true
-                // ⭐ کش بیشتر برای سرعت
-                setAppCacheEnabled(true)
             }
             setLayerType(View.LAYER_TYPE_HARDWARE, null)
 
