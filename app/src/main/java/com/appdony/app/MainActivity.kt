@@ -48,7 +48,8 @@ class MainActivity : AppCompatActivity() {
     private var loaderShownAt = 0L
     private val minLoaderTime = 250L
     private val handler = Handler(Looper.getMainLooper())
-    private var loaderShowRunnable: Runnable? = null
+
+    private val maxLoaderRunnable = Runnable { hideLoader() }
 
     private val downloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -129,28 +130,52 @@ class MainActivity : AppCompatActivity() {
                 setSupportMultipleWindows(false)
                 allowFileAccess = true
                 allowContentAccess = true
+                // ⭐ کش بیشتر برای سرعت
+                setAppCacheEnabled(true)
             }
             setLayerType(View.LAYER_TYPE_HARDWARE, null)
+
+            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
 
             addJavascriptInterface(object {
                 @JavascriptInterface
                 fun onDownloadFly(cssX: Float, cssY: Float) {
                     runOnUiThread { flyIconToBall(cssX, cssY) }
                 }
+
+                @JavascriptInterface
+                fun onNavStart() {
+                    runOnUiThread { showLoader() }
+                }
+
+                @JavascriptInterface
+                fun onContentReady() {
+                    runOnUiThread { hideLoader() }
+                }
             }, "AppdonyBridge")
 
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                    super.onPageStarted(view, url, favicon); showLoader()
+                    super.onPageStarted(view, url, favicon)
+                    showLoader()
                 }
                 override fun onPageFinished(view: WebView?, url: String?) {
-                    super.onPageFinished(view, url); hideLoader(); injectCustomCSS()
+                    super.onPageFinished(view, url)
+                    injectCustomCSS()
+                    injectScript()
+                    hideLoader()
                 }
                 override fun onPageCommitVisible(view: WebView?, url: String?) {
-                    super.onPageCommitVisible(view, url); hideLoader(); injectCustomCSS()
+                    super.onPageCommitVisible(view, url)
+                    injectCustomCSS()
+                    injectScript()
+                    hideLoader()
                 }
                 override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
-                    super.doUpdateVisitedHistory(view, url, isReload); hideLoader(); injectCustomCSS()
+                    super.doUpdateVisitedHistory(view, url, isReload)
+                    injectCustomCSS()
+                    injectScript()
+                    hideLoader()
                 }
                 override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                     super.onReceivedError(view, request, error)
@@ -210,14 +235,12 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    // ============ 🚀 انیمیشن پرنده — از دکمه واقعی به توپ ============
+    // ============ انیمیشن پرنده ============
     private fun flyIconToBall(cssX: Float, cssY: Float) {
-        // تبدیل CSS pixel به Android pixel
         val density = resources.displayMetrics.density
         val startX = cssX * density
         val startY = cssY * density
 
-        // موقعیت توپ نسبت به root
         val ballCenterX = ball.view.x + ball.size / 2f
         val ballCenterY = ball.view.y + ball.size / 2f
 
@@ -242,15 +265,15 @@ class MainActivity : AppCompatActivity() {
             topMargin = (startY - flyerSize / 2).toInt()
         })
 
-        // فاز ۱: بزرگ شدن اولیه
-        flyer.scaleX = 0.3f; flyer.scaleY = 0.3f
+        flyer.scaleX = 0.3f
+        flyer.scaleY = 0.3f
         flyer.alpha = 0f
+
         flyer.animate()
             .scaleX(1.15f).scaleY(1.15f).alpha(1f)
             .setDuration(250)
             .setInterpolator(AccelerateDecelerateInterpolator())
             .withEndAction {
-                // فاز ۲: پرواز به سمت توپ — کند و نرم
                 flyer.animate()
                     .x(ballCenterX - flyerSize / 2f)
                     .y(ballCenterY - flyerSize / 2f)
@@ -260,7 +283,6 @@ class MainActivity : AppCompatActivity() {
                     .setInterpolator(AccelerateDecelerateInterpolator())
                     .withEndAction {
                         root.removeView(flyer)
-                        // پالس روی توپ
                         ball.view.animate()
                             .scaleX(1.15f).scaleY(1.15f)
                             .setDuration(180)
@@ -289,17 +311,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ============ لودینگ ============
     private fun showLoader() {
         loaderShownAt = System.currentTimeMillis()
-        loaderShowRunnable = Runnable {
-            miniLoader.visibility = View.VISIBLE
-            ball.view.visibility = View.GONE
-        }
-        handler.postDelayed(loaderShowRunnable!!, 300) // کمی تاخیر تا فقط لودهای واقعی دیده بشن
+        miniLoader.visibility = View.VISIBLE
+        ball.view.visibility = View.GONE
+        handler.removeCallbacks(maxLoaderRunnable)
+        handler.postDelayed(maxLoaderRunnable, 3000)
     }
 
     private fun hideLoader() {
-        loaderShowRunnable?.let { handler.removeCallbacks(it) }
+        handler.removeCallbacks(maxLoaderRunnable)
         val elapsed = System.currentTimeMillis() - loaderShownAt
         val delay = if (loaderShownAt > 0 && elapsed < minLoaderTime) minLoaderTime - elapsed else 0L
         handler.postDelayed({
@@ -331,41 +353,43 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         try { unregisterReceiver(downloadReceiver) } catch (_: Exception) {}
         panel.destroy()
+        handler.removeCallbacks(maxLoaderRunnable)
     }
 
+    // ============ CSS فقط ============
     private fun injectCustomCSS() {
         try {
             val css = assets.open("style.css").bufferedReader().use { it.readText() }
-            val js = assets.open("script.js").bufferedReader().use { it.readText() }
             val escaped = escapeForJs(css)
             val code = """
                 (function() {
-                    function injectCss() {
+                    function ensureCss() {
                         if (document.getElementById('appdony-custom-style')) return;
                         var s = document.createElement('style');
                         s.id = 'appdony-custom-style';
                         s.appendChild(document.createTextNode("$escaped"));
                         (document.head || document.documentElement).appendChild(s);
                     }
-                    injectCss();
-                    if (!window._appdonyObserver) {
-                        window._appdonyObserver = new MutationObserver(function() {
-                            if (!document.getElementById('appdony-custom-style')) injectCss();
+                    ensureCss();
+                    if (!window._appdonyCssObserver) {
+                        window._appdonyCssObserver = new MutationObserver(function() {
+                            if (!document.getElementById('appdony-custom-style')) ensureCss();
                         });
-                        window._appdonyObserver.observe(document.documentElement, { childList: true, subtree: true });
+                        var head = document.head || document.documentElement;
+                        window._appdonyCssObserver.observe(head, { childList: true });
                     }
-                    if (!window._appdonyInterval) {
-                        window._appdonyInterval = setInterval(function() {
-                            if (!document.getElementById('appdony-custom-style')) injectCss();
-                        }, 1500);
-                    }
-                    try { $js } catch(e) {}
                 })();
             """.trimIndent()
             webView.evaluateJavascript(code, null)
-        } catch (e: Exception) {
-            Toast.makeText(this, "خطا: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
+        } catch (_: Exception) {}
+    }
+
+    // ============ اسکریپت — فقط یه بار ============
+    private fun injectScript() {
+        try {
+            val js = assets.open("script.js").bufferedReader().use { it.readText() }
+            webView.evaluateJavascript(js, null)
+        } catch (_: Exception) {}
     }
 
     private fun escapeForJs(s: String): String {
