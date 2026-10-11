@@ -5,7 +5,6 @@
     function notifyNavStart() {
         if (window.AppdonyBridge) try { window.AppdonyBridge.onNavStart(); } catch(e) {}
     }
-
     function recordClick(x, y) {
         if (window.AppdonyBridge) try { window.AppdonyBridge.onAnyClick(x, y); } catch(e) {}
     }
@@ -13,10 +12,7 @@
     document.addEventListener('touchstart', function(e) {
         if (e.touches && e.touches[0]) recordClick(e.touches[0].clientX, e.touches[0].clientY);
     }, { passive: true, capture: true });
-
-    document.addEventListener('click', function(e) {
-        recordClick(e.clientX, e.clientY);
-    }, true);
+    document.addEventListener('click', function(e) { recordClick(e.clientX, e.clientY); }, true);
 
     document.addEventListener('click', function(e) {
         var nav = e.target.closest('.bottom-nav-item, .bottom-nav a, .cat-link');
@@ -60,7 +56,6 @@
             t.style.transform = 'scale(0.94)';
         }
     }, { passive: true });
-
     document.addEventListener('touchend', function(e) {
         var t = e.target.closest('a, button, [class*="btn"], [class*="button"], [role="button"]');
         if (t) setTimeout(function() {
@@ -69,31 +64,102 @@
         }, 90);
     }, { passive: true });
 
-    // ⭐ رنگ تم رو از اندروید می‌گیریم
+    // ⭐⭐⭐ اعمال رنگ تم روی کل سایت
     window._appdonySetAccent = function(hex) {
         window._appdonyAccent = hex;
+
         var old = document.getElementById('appdony-accent-style');
         if (old) old.remove();
+
+        var css = `
+            /* ==== متغیرهای رنگ تم ==== */
+            :root {
+                --appdony-accent: ${hex};
+                --appdony-accent-10: ${hex}1A;
+                --appdony-accent-20: ${hex}33;
+                --appdony-accent-30: ${hex}4D;
+            }
+
+            /* ==== نوار پایین: تب فعال ==== */
+            .bottom-nav .active,
+            .bottom-nav-item.active,
+            .bottom-nav a.active,
+            .bottom-nav a[aria-current="page"],
+            .bottom-nav li.active > a {
+                background-color: var(--appdony-accent-20) !important;
+                color: var(--appdony-accent) !important;
+                border-radius: 50px !important;
+                padding: 6px 20px !important;
+            }
+            .bottom-nav .active i,
+            .bottom-nav .active svg,
+            .bottom-nav .active span,
+            .bottom-nav-item.active i,
+            .bottom-nav-item.active span {
+                color: var(--appdony-accent) !important;
+                fill: var(--appdony-accent) !important;
+            }
+
+            /* ==== نوار دسته‌بندی بالا: تب فعال ==== */
+            .cat-link.active,
+            .cat-link[aria-current] {
+                color: var(--appdony-accent) !important;
+                border-bottom-color: var(--appdony-accent) !important;
+            }
+
+            /* ==== دکمه‌های اصلی سایت ==== */
+            .btn-primary,
+            .btn-install,
+            [class*="btn-download"],
+            [class*="download-btn"],
+            button[class*="download"],
+            input[type="submit"] {
+                background-color: var(--appdony-accent) !important;
+                border-color: var(--appdony-accent) !important;
+            }
+
+            /* ==== دکمه‌های ثانویه (با حاشیه) ==== */
+            .btn-outline,
+            [class*="btn-outline"],
+            button[class*="outline"] {
+                border-color: var(--appdony-accent) !important;
+                color: var(--appdony-accent) !important;
+            }
+            .btn-outline:active,
+            [class*="btn-outline"]:active {
+                background-color: var(--appdony-accent-10) !important;
+            }
+
+            /* ==== لینک‌ها و متن‌های تیتر ==== */
+            a { color: var(--appdony-accent) !important; }
+            h1 a, h2 a, h3 a { color: var(--appdony-accent) !important; }
+
+            /* ==== بج‌ها و برچسب‌ها ==== */
+            .badge, .tag, [class*="badge"], [class*="tag"] {
+                background-color: var(--appdony-accent-10) !important;
+                color: var(--appdony-accent) !important;
+            }
+
+            /* ==== نوار پیشرفت ==== */
+            progress, .progress-bar {
+                accent-color: var(--appdony-accent) !important;
+            }
+
+            /* ==== فوکوس اینپوت‌ها ==== */
+            input:focus, textarea:focus, select:focus {
+                border-color: var(--appdony-accent) !important;
+                box-shadow: 0 0 0 3px var(--appdony-accent-20) !important;
+            }
+
+            /* ==== اسکرول‌بار ==== */
+            ::-webkit-scrollbar-thumb {
+                background: var(--appdony-accent-30) !important;
+            }
+        `;
+
         var s = document.createElement('style');
         s.id = 'appdony-accent-style';
-        s.appendChild(document.createTextNode(
-            ':root { --appdony-accent: ' + hex + '; }' +
-            '.cat-link.active, .cat-link[aria-current], .bottom-nav .active, .bottom-nav-item.active {' +
-            '  color: ' + hex + ' !important;' +
-            '  border-color: ' + hex + ' !important;' +
-            '}' +
-            '.bottom-nav .active, .bottom-nav-item.active {' +
-            '  background-color: ' + hex + '20 !important;' +
-            '}' +
-            '.bottom-nav .active i, .bottom-nav .active svg, .bottom-nav .active span,' +
-            '.bottom-nav-item.active i, .bottom-nav-item.active span {' +
-            '  color: ' + hex + ' !important; fill: ' + hex + ' !important;' +
-            '}' +
-            'a:hover, button:hover { color: ' + hex + ' !important; }' +
-            '.btn-primary, .btn-install, [class*="btn-download"], [class*="download-btn"] {' +
-            '  background-color: ' + hex + ' !important;' +
-            '}'
-        ));
+        s.appendChild(document.createTextNode(css));
         document.head.appendChild(s);
     };
 })();
