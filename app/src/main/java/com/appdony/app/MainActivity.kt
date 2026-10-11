@@ -46,11 +46,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var helper: DownloadHelper
     private lateinit var settingsManager: SettingsManager
 
-    private var isDark = false
-    private var accent = 0
+    private val handler = Handler(Looper.getMainLooper())
     private var loaderShownAt = 0L
     private val minLoaderTime = 250L
-    private val handler = Handler(Looper.getMainLooper())
 
     private var lastClickX = 0f
     private var lastClickY = 0f
@@ -66,13 +64,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun currentAccent(): Int = settingsManager.getAccent()
+    private fun currentDark(): Boolean = settingsManager.isDark()
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         settingsManager = SettingsManager(this)
-        isDark = settingsManager.isDark()
-        accent = if (isDark) Color.parseColor("#4DD0C7") else Color.parseColor("#0D7377")
+        val isDark = settingsManager.isDark()
+        val accent = settingsManager.getAccent()
 
         val splashBg = if (isDark) Color.parseColor("#001C1A") else Color.WHITE
         window.statusBarColor = splashBg
@@ -105,18 +106,19 @@ class MainActivity : AppCompatActivity() {
         miniLoader = SpinnerLoader(this, isDark, 18f).apply { visibility = View.GONE }
 
         // PANELS
-        panel = DownloadPanel(this, isDark, accent, helper) { count ->
+        panel = DownloadPanel(this, { currentDark() }, { currentAccent() }, helper) { count ->
             ball.updateBadge(count)
         }
 
         settingsPanel = SettingsPanel(
-            this, accent, settingsManager,
+            this, settingsManager,
             onThemeChanged = { applyTheme() },
-            onFontChanged = { applyFontSize() }
+            onFontChanged = { applyFontSize() },
+            onAccentChanged = { applyAccent() }
         )
 
         // BALL
-        ball = FloatingBall(this, accent) {
+        ball = FloatingBall(this, { currentAccent() }) {
             if (ballMenu.isOpen) ballMenu.hide()
             else ballMenu.show(ball.view.x, ball.view.y, ball.size)
         }
@@ -130,7 +132,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         // MENU
-        ballMenu = BallMenu(this, accent).apply {
+        ballMenu = BallMenu(this, { currentAccent() }).apply {
             setOnDownloads {
                 if (panel.isOpen) panel.close() else panel.open()
             }
@@ -170,43 +172,27 @@ class MainActivity : AppCompatActivity() {
                     lastClickY = y
                     lastClickTime = System.currentTimeMillis()
                 }
-
                 @JavascriptInterface
-                fun onNavStart() {
-                    runOnUiThread { showLoader() }
-                }
-
+                fun onNavStart() { runOnUiThread { showLoader() } }
                 @JavascriptInterface
-                fun onContentReady() {
-                    runOnUiThread { hideLoader() }
-                }
+                fun onContentReady() { runOnUiThread { hideLoader() } }
             }, "AppdonyBridge")
 
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                    super.onPageStarted(view, url, favicon)
-                    showLoader()
+                    super.onPageStarted(view, url, favicon); showLoader()
                 }
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
-                    injectCustomCSS()
-                    injectScript()
-                    applyThemeCss()
-                    hideLoader()
+                    injectCustomCSS(); injectScript(); applyThemeCss(); hideLoader()
                 }
                 override fun onPageCommitVisible(view: WebView?, url: String?) {
                     super.onPageCommitVisible(view, url)
-                    injectCustomCSS()
-                    injectScript()
-                    applyThemeCss()
-                    hideLoader()
+                    injectCustomCSS(); injectScript(); applyThemeCss(); hideLoader()
                 }
                 override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                     super.doUpdateVisitedHistory(view, url, isReload)
-                    injectCustomCSS()
-                    injectScript()
-                    applyThemeCss()
-                    hideLoader()
+                    injectCustomCSS(); injectScript(); applyThemeCss(); hideLoader()
                 }
                 override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                     super.onReceivedError(view, request, error)
@@ -276,14 +262,19 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    // اعمال حالت شب/روز
     private fun applyTheme() {
-        isDark = settingsManager.isDark()
-        accent = if (isDark) Color.parseColor("#4DD0C7") else Color.parseColor("#0D7377")
+        val isDark = settingsManager.isDark()
+        val splashBg = if (isDark) Color.parseColor("#001C1A") else Color.WHITE
+        window.statusBarColor = splashBg
+        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = !isDark
         applyThemeCss()
+        ball.updateColor()
     }
 
-    // تزریق CSS حالت تاریک به سایت
+    private fun applyAccent() {
+        ball.updateColor()
+    }
+
     private fun applyThemeCss() {
         val css = if (settingsManager.isDark()) {
             "html { filter: invert(1) hue-rotate(180deg) !important; background: #0f0f0f !important; } " +
@@ -307,12 +298,10 @@ class MainActivity : AppCompatActivity() {
         webView.evaluateJavascript(js, null)
     }
 
-    // اعمال سایز فونت
     private fun applyFontSize() {
         webView.settings.textZoom = settingsManager.getTextZoom()
     }
 
-    // انیمیشن پرنده
     private fun triggerFlyerFromLastClick() {
         val timeSinceClick = System.currentTimeMillis() - lastClickTime
         if (timeSinceClick in 0..3000 && lastClickX > 0 && lastClickY > 0) {
@@ -329,6 +318,7 @@ class MainActivity : AppCompatActivity() {
         val ballCenterY = ball.view.y + ball.size / 2f
 
         val flyerSize = 90
+        val accent = settingsManager.getAccent()
 
         val flyer = FrameLayout(this).apply {
             background = GradientDrawable().apply {
