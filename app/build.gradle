@@ -11,13 +11,26 @@ android {
         applicationId "com.appdony.app"
         minSdk 21
         targetSdk 34
-        versionCode 1113
-        versionName "1.1.13"
+        versionCode 1114
+        versionName "1.1.14"
+    }
+
+    signingConfigs {
+        release {
+            storeFile file("keystore.jks")
+            storePassword System.getenv("KEYSTORE_PASSWORD") ?: "Appdony@2024"
+            keyAlias System.getenv("KEY_ALIAS") ?: "appdony"
+            keyPassword System.getenv("KEY_PASSWORD") ?: "Appdony@2024"
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig signingConfigs.release
+        }
         release {
             minifyEnabled false
+            signingConfig signingConfigs.release
         }
     }
 
@@ -34,4 +47,4 @@ android {
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'androidx.core:core-ktx:1.13.1'
-} 
+}
