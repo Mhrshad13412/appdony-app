@@ -41,7 +41,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var root: FrameLayout
     private lateinit var ball: FloatingBall
     private lateinit var panel: DownloadPanel
+    private lateinit var settingsPanel: SettingsPanel
+    private lateinit var ballMenu: BallMenu
     private lateinit var helper: DownloadHelper
+    private lateinit var settingsManager: SettingsManager
 
     private var isDark = false
     private var accent = 0
@@ -49,7 +52,6 @@ class MainActivity : AppCompatActivity() {
     private val minLoaderTime = 250L
     private val handler = Handler(Looper.getMainLooper())
 
-    // ⭐ آخرین موقعیت کلیک کاربر
     private var lastClickX = 0f
     private var lastClickY = 0f
     private var lastClickTime = 0L
@@ -68,10 +70,11 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        isDark = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
-        val splashBg = if (isDark) Color.parseColor("#001C1A") else Color.WHITE
+        settingsManager = SettingsManager(this)
+        isDark = settingsManager.isDark()
         accent = if (isDark) Color.parseColor("#4DD0C7") else Color.parseColor("#0D7377")
 
+        val splashBg = if (isDark) Color.parseColor("#001C1A") else Color.WHITE
         window.statusBarColor = splashBg
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = !isDark
 
@@ -101,14 +104,22 @@ class MainActivity : AppCompatActivity() {
         // MINI LOADER
         miniLoader = SpinnerLoader(this, isDark, 18f).apply { visibility = View.GONE }
 
-        // PANEL
+        // PANELS
         panel = DownloadPanel(this, isDark, accent, helper) { count ->
             ball.updateBadge(count)
         }
 
+        settingsPanel = SettingsPanel(
+            this, accent, settingsManager,
+            onThemeChanged = { applyTheme() },
+            onFontChanged = { applyFontSize() }
+        )
+
         // BALL
         ball = FloatingBall(this, accent) {
-            if (panel.isOpen) panel.close() else panel.open()
+            // ⭐ توپ لمس شد → منو باز کن
+            if (ballMenu.isOpen) ballMenu.hide()
+            else ballMenu.show(ball.view.x, ball.view.y, ball.size)
         }
         ball.view.alpha = 0f
         ball.view.scaleX = 0.8f
@@ -117,6 +128,16 @@ class MainActivity : AppCompatActivity() {
 
         val ballParams = FrameLayout.LayoutParams(ball.size, ball.size).apply {
             gravity = Gravity.TOP or Gravity.START
+        }
+
+        // MENU
+        ballMenu = BallMenu(this, isDark, accent).apply {
+            setOnDownloads {
+                if (panel.isOpen) panel.close() else panel.open()
+            }
+            setOnSettings {
+                if (settingsPanel.isOpen) settingsPanel.close() else settingsPanel.open()
+            }
         }
 
         // WEBVIEW
@@ -137,6 +158,8 @@ class MainActivity : AppCompatActivity() {
                 setSupportMultipleWindows(false)
                 allowFileAccess = true
                 allowContentAccess = true
+                // ⭐ سایز فونت ذخیره‌شده
+                textZoom = settingsManager.getTextZoom()
             }
             setLayerType(View.LAYER_TYPE_HARDWARE, null)
 
@@ -170,18 +193,21 @@ class MainActivity : AppCompatActivity() {
                     super.onPageFinished(view, url)
                     injectCustomCSS()
                     injectScript()
+                    applyThemeCss()
                     hideLoader()
                 }
                 override fun onPageCommitVisible(view: WebView?, url: String?) {
                     super.onPageCommitVisible(view, url)
                     injectCustomCSS()
                     injectScript()
+                    applyThemeCss()
                     hideLoader()
                 }
                 override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                     super.doUpdateVisitedHistory(view, url, isReload)
                     injectCustomCSS()
                     injectScript()
+                    applyThemeCss()
                     hideLoader()
                 }
                 override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
@@ -197,12 +223,8 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            // ⭐⭐⭐ اینجا انیمیشن پرنده رو از موقعیت آخرین کلیک راه می‌ندازیم
             setDownloadListener { url, ua, cd, mt, _ ->
-                // اول انیمیشن رو نشون بده (با کمی تاخیر تا درست بمونه)
                 triggerFlyerFromLastClick()
-
-                // بعد دانلود رو شروع کن
                 val id = helper.startDownload(url, ua, cd, mt)
                 if (id > 0) {
                     Toast.makeText(this@MainActivity, "دانلود شروع شد", Toast.LENGTH_SHORT).show()
@@ -220,6 +242,8 @@ class MainActivity : AppCompatActivity() {
         root.addView(webView, FrameLayout.LayoutParams(-1, -1))
         root.addView(miniLoader, FrameLayout.LayoutParams(180, 180).apply { gravity = Gravity.CENTER })
         root.addView(panel.view, FrameLayout.LayoutParams(-1, -1))
+        root.addView(settingsPanel.view, FrameLayout.LayoutParams(-1, -1))
+        root.addView(ballMenu.view, FrameLayout.LayoutParams(-1, -1))
         root.addView(ball.view, ballParams)
         setContentView(root)
 
@@ -240,25 +264,71 @@ class MainActivity : AppCompatActivity() {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (panel.isOpen) panel.close()
-                else if (webView.canGoBack()) webView.goBack()
-                else { isEnabled = false; onBackPressedDispatcher.onBackPressed() }
+                when {
+                    ballMenu.isOpen -> ballMenu.hide()
+                    panel.isOpen -> panel.close()
+                    settingsPanel.isOpen -> settingsPanel.close()
+                    webView.canGoBack() -> webView.goBack()
+                    else -> {
+                        isEnabled = false
+                        onBackPressedDispatcher.onBackPressed()
+                    }
+                }
             }
         })
     }
 
-    // ⭐ اگر آخرین کلیک کمتر از ۳ ثانیه پیش بوده، انیمیشن رو اجرا کن
-    private fun triggerFlyerFromLastClick() {
-        val timeSinceClick = System.currentTimeMillis() - lastClickTime
-        if (timeSinceClick in 0..3000 && lastClickX > 0 && lastClickY > 0) {
-            // کمی تاخیر تا روی DownloadListener هم بیاد
-            handler.postDelayed({
-                flyIconToBall(lastClickX, lastClickY)
-            }, 150)
-        }
+    // ⭐ اعمال حالت شب/روز
+    private fun applyTheme() {
+        isDark = settingsManager.isDark()
+        accent = if (isDark) Color.parseColor("#4DD0C7") else Color.parseColor("#0D7377")
+        applyThemeCss()
+    }
+
+    // ⭐ تزریق CSS حالت تاریک به سایت
+    private fun applyThemeCss() {
+        val css = if (settingsManager.isDark()) {
+            """
+            html {
+                filter: invert(1) hue-rotate(180deg) !important;
+                background: #0f0f0f !important;
+            }
+            img, video, iframe, canvas, svg, [style*="background-image"] {
+                filter: invert(1) hue-rotate(180deg) !important;
+            }
+            """
+        } else ""
+
+        val escaped = css.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ")
+
+        val js = """
+            (function() {
+                var old = document.getElementById('appdony-theme-style');
+                if (old) old.remove();
+                if ("$escaped".length === 0) return;
+                var s = document.createElement('style');
+                s.id = 'appdony-theme-style';
+                s.appendChild(document.createTextNode("$escaped"));
+                (document.head || document.documentElement).appendChild(s);
+            })();
+        """.trimIndent()
+
+        webView.evaluateJavascript(js, null)
+    }
+
+    // ⭐ اعمال سایز فونت
+    private fun applyFontSize() {
+        webView.settings.textZoom = settingsManager.getTextZoom()
     }
 
     // انیمیشن پرنده
+    private fun triggerFlyerFromLastClick() {
+        val timeSinceClick = System.currentTimeMillis() - lastClickTime
+        if (timeSinceClick in 0..3000 && lastClickX > 0 && lastClickY > 0) {
+            handler.postDelayed({ flyIconToBall(lastClickX, lastClickY) }, 150)
+        }
+    }
+
     private fun flyIconToBall(cssX: Float, cssY: Float) {
         val density = resources.displayMetrics.density
         val startX = cssX * density
@@ -334,7 +404,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // لودینگ
     private fun showLoader() {
         loaderShownAt = System.currentTimeMillis()
         miniLoader.visibility = View.VISIBLE
@@ -376,10 +445,10 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         try { unregisterReceiver(downloadReceiver) } catch (_: Exception) {}
         panel.destroy()
+        settingsPanel.destroy()
         handler.removeCallbacks(maxLoaderRunnable)
     }
 
-    // CSS فقط
     private fun injectCustomCSS() {
         try {
             val css = assets.open("style.css").bufferedReader().use { it.readText() }
@@ -407,7 +476,6 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) {}
     }
 
-    // اسکریپت — فقط یه بار
     private fun injectScript() {
         try {
             val js = assets.open("script.js").bufferedReader().use { it.readText() }
