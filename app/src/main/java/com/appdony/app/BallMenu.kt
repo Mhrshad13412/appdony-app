@@ -62,9 +62,7 @@ class BallMenu(private val context: Context, private val isDark: Boolean, privat
             onSettings?.invoke()
         })
 
-        // موقعیت: بالای توپ با فاصله
         val margin = 16f
-        val menuWidth = 600 // تقریبی
         view.post {
             val actualWidth = menuBox.width
             val actualHeight = menuBox.height
@@ -128,8 +126,11 @@ class BallMenu(private val context: Context, private val isDark: Boolean, privat
     private fun makeDivider(): View {
         return View(context).apply {
             layoutParams = LinearLayout.LayoutParams(-1, 2).apply {
-                marginTop = 4; marginBottom = 4
-                marginStart = 30; marginEnd = 30
+                // ⭐ این دو خط اصلاح شدن
+                topMargin = 4
+                bottomMargin = 4
+                marginStart = 30
+                marginEnd = 30
             }
             setBackgroundColor(Color.parseColor("#22888888"))
         }
