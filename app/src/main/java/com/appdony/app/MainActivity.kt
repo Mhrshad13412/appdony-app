@@ -7,8 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.content.res.Configuration
-import android.database.Cursor
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
@@ -29,6 +27,8 @@ import android.webkit.CookieManager
 import android.webkit.DownloadListener
 import android.webkit.URLUtil
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebStorage
 import android.webkit.WebView
@@ -79,7 +79,30 @@ class MainActivity : AppCompatActivity() {
             .start()
     }
 
+    // ⭐ مدیریت لودینگ با چند محافظ
     private var showLoaderRunnable: Runnable? = null
+    private val maxLoaderRunnable = Runnable {
+        // اگه بعد از 5 ثانیه هنوز لود می‌کنه، مخفی کن
+        hideLoader()
+    }
+
+    private fun hideLoader() {
+        showLoaderRunnable?.let { refreshHandler.removeCallbacks(it) }
+        refreshHandler.removeCallbacks(maxLoaderRunnable)
+        miniLoader.visibility = View.GONE
+        ballWrapper.visibility = View.VISIBLE
+    }
+
+    private fun showLoaderIfNeeded() {
+        // فقط اگه 400ms طول بکشه، لودینگ بیاد
+        showLoaderRunnable = Runnable {
+            miniLoader.visibility = View.VISIBLE
+            ballWrapper.visibility = View.GONE
+        }
+        refreshHandler.postDelayed(showLoaderRunnable!!, 400)
+        // حداکثر 5 ثانیه نمایش داده بشه
+        refreshHandler.postDelayed(maxLoaderRunnable, 5000)
+    }
 
     private val downloadCompleteReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -93,7 +116,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        isDark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        isDark = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
         val splashBg = if (isDark) Color.parseColor("#001C1A") else Color.WHITE
         accent = if (isDark) Color.parseColor("#4DD0C7") else Color.parseColor("#0D7377")
 
@@ -178,7 +201,7 @@ class MainActivity : AppCompatActivity() {
         panelBox = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(if (isDark) Color.parseColor("#1A1A1A") else Color.WHITE)
-            setPadding(24, 24, 24, 24)
+            setPadding(20, 20, 20, 20)
         }
         val panelBoxParams = FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -207,7 +230,10 @@ class MainActivity : AppCompatActivity() {
         panelBox.addView(panelTitle)
 
         val scroll = ScrollView(this)
-        downloadsList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        downloadsList = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 8, 0, 16)
+        }
         scroll.addView(downloadsList)
         panelBox.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
@@ -253,23 +279,33 @@ class MainActivity : AppCompatActivity() {
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                     super.onPageStarted(view, url, favicon)
-                    showLoaderRunnable = Runnable {
-                        miniLoader.visibility = View.VISIBLE
-                        ballWrapper.visibility = View.GONE
-                    }
-                    Handler(Looper.getMainLooper()).postDelayed(showLoaderRunnable!!, 500)
+                    showLoaderIfNeeded()
                 }
 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
-                    showLoaderRunnable?.let { Handler(Looper.getMainLooper()).removeCallbacks(it) }
-                    miniLoader.visibility = View.GONE
-                    ballWrapper.visibility = View.VISIBLE
+                    hideLoader()
                     injectCustomCSS()
+                }
+
+                // ⭐ اگه خطا داد، لودینگ رو مخفی کن
+                override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                    super.onReceivedError(view, request, error)
+                    if (request?.isForMainFrame == true) {
+                        hideLoader()
+                    }
                 }
             }
 
-            webChromeClient = WebChromeClient()
+            // ⭐ لودینگ به محض رسیدن به 65% مخفی میشه
+            webChromeClient = object : WebChromeClient() {
+                override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                    super.onProgressChanged(view, newProgress)
+                    if (newProgress >= 65) {
+                        hideLoader()
+                    }
+                }
+            }
 
             setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
                 val downloadId = startDownload(url, userAgent, contentDisposition, mimetype)
@@ -315,7 +351,6 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    // ⭐ دیپ‌لینک: وقتی از اپ دیگه لینک appdony باز بشه
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         intent.data?.let { uri ->
@@ -323,7 +358,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ⭐ استخراج og:image از صفحه فعلی و ذخیره برای این downloadId
     private fun fetchAndSaveIcon(downloadId: Long) {
         webView.evaluateJavascript("""
             (function() {
@@ -362,7 +396,6 @@ class MainActivity : AppCompatActivity() {
                     downX = event.rawX; downY = event.rawY
                     startX = v.x; startY = v.y
                     isDragging = false
-                    // ⭐ موقع لمس، کامل نمایش
                     refreshHandler.removeCallbacks(hideBallRunnable)
                     ballWrapper.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(200).start()
                     true
@@ -387,7 +420,6 @@ class MainActivity : AppCompatActivity() {
                     if (!isDragging) {
                         if (panelOpen) closePanel() else openPanel()
                     }
-                    // ⭐ بعد از ۳ ثانیه، بره گوشه
                     refreshHandler.removeCallbacks(hideBallRunnable)
                     refreshHandler.postDelayed(hideBallRunnable, 3000)
                     true
@@ -396,7 +428,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // ⭐ موقع بالا اومدن، شروع کن شمارش ۳ ثانیه
         refreshHandler.postDelayed(hideBallRunnable, 3000)
     }
 
@@ -454,7 +485,6 @@ class MainActivity : AppCompatActivity() {
         downloadPanel.visibility = View.VISIBLE
         downloadPanel.alpha = 0f
         downloadPanel.animate().alpha(1f).setDuration(200).start()
-        // ⭐ انیمیشن کشیده‌شدن از پایین مثل اندروید ۱۲
         panelBox.translationY = panelBox.height.toFloat()
         panelBox.animate()
             .translationY(0f)
@@ -507,24 +537,31 @@ class MainActivity : AppCompatActivity() {
         updateBadge()
     }
 
-    // ⭐ طرح جدید: آیکون وسط، اسم زیر، وضعیت زیر، دکمه‌ها زیر — همه وسط‌چین
+    // ⭐ طرح جدید: آیکون وسط، عرض کم، فاصله از پایین
     private fun createDownloadItem(id: Long, title: String, status: Int, downloaded: Long, total: Long, localUri: String?): View {
         val textColor = if (isDark) Color.WHITE else Color.BLACK
         val cardBg = if (isDark) Color.parseColor("#2A2A2A") else Color.parseColor("#F5F5F5")
 
+        val outerBox = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        outerBox.layoutParams = LinearLayout.LayoutParams(-1, -2).apply {
+            bottomMargin = 14
+            marginStart = 20
+            marginEnd = 20
+        }
+
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(20, 24, 20, 24)
+            setPadding(20, 22, 20, 22)
             background = GradientDrawable().apply {
                 setColor(cardBg)
                 cornerRadius = 24f
             }
         }
-        box.layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 12 }
+        outerBox.addView(box, LinearLayout.LayoutParams(-1, -2))
 
-        // آیکون وسط
-        val iconContainer = FrameLayout(this)
         val iconSize = 90
         val iconView = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
@@ -536,17 +573,16 @@ class MainActivity : AppCompatActivity() {
             }
             clipToOutline = true
         }
-        iconContainer.addView(iconView, FrameLayout.LayoutParams(iconSize, iconSize))
-        box.addView(iconContainer)
+        box.addView(iconView, LinearLayout.LayoutParams(iconSize, iconSize).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+        })
 
-        // لود آیکون اختصاصی از حافظه
         val savedIcon = getSharedPreferences("appdony_icons", MODE_PRIVATE)
             .getString("icon_$id", null)
         if (!savedIcon.isNullOrEmpty()) {
             loadImageAsync(savedIcon, iconView)
         }
 
-        // اسم
         val nameTv = TextView(this).apply {
             text = title
             textSize = 15f
@@ -557,9 +593,8 @@ class MainActivity : AppCompatActivity() {
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             setPadding(0, 14, 0, 0)
         }
-        box.addView(nameTv)
+        box.addView(nameTv, LinearLayout.LayoutParams(-1, -2))
 
-        // وضعیت
         val statusTv = TextView(this).apply {
             textSize = 13f
             setPadding(0, 10, 0, 16)
@@ -576,9 +611,8 @@ class MainActivity : AppCompatActivity() {
                 else -> "در انتظار"
             }
         }
-        box.addView(statusTv)
+        box.addView(statusTv, LinearLayout.LayoutParams(-1, -2))
 
-        // دکمه‌ها (وسط‌چین)
         val btnRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -589,7 +623,7 @@ class MainActivity : AppCompatActivity() {
                 text = "نصب"
                 textSize = 13f
                 setTextColor(Color.WHITE)
-                setPadding(50, 16, 50, 16)
+                setPadding(45, 14, 45, 14)
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
                 background = GradientDrawable().apply {
                     setColor(accent)
@@ -598,14 +632,14 @@ class MainActivity : AppCompatActivity() {
                 setOnClickListener { installApk(localUri) }
             }
             btnRow.addView(installBtn)
-            btnRow.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(16, 1) })
+            btnRow.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(14, 1) })
         }
 
         val deleteBtn = TextView(this).apply {
             text = "حذف"
             textSize = 13f
             setTextColor(Color.WHITE)
-            setPadding(50, 16, 50, 16)
+            setPadding(45, 14, 45, 14)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             background = GradientDrawable().apply {
                 setColor(Color.parseColor("#E53935"))
@@ -619,12 +653,11 @@ class MainActivity : AppCompatActivity() {
             }
         }
         btnRow.addView(deleteBtn)
-        box.addView(btnRow)
+        box.addView(btnRow, LinearLayout.LayoutParams(-1, -2))
 
-        return box
+        return outerBox
     }
 
-    // ⭐ لود تصویر به‌صورت غیرهمزمان
     private fun loadImageAsync(url: String, imageView: ImageView) {
         Thread {
             try {
@@ -700,6 +733,8 @@ class MainActivity : AppCompatActivity() {
         try { unregisterReceiver(downloadCompleteReceiver) } catch (e: Exception) {}
         refreshHandler.removeCallbacks(refreshRunnable)
         refreshHandler.removeCallbacks(hideBallRunnable)
+        showLoaderRunnable?.let { refreshHandler.removeCallbacks(it) }
+        refreshHandler.removeCallbacks(maxLoaderRunnable)
     }
 
     class SpinnerLoader(context: Context, private val isDark: Boolean, private val strokeW: Float) : View(context) {
