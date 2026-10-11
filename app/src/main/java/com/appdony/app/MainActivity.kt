@@ -102,7 +102,9 @@ class MainActivity : AppCompatActivity() {
         miniLoader = SpinnerLoader(this, isDark, 18f).apply { visibility = View.GONE }
 
         // PANEL
-        panel = DownloadPanel(this, isDark, accent, helper)
+        panel = DownloadPanel(this, isDark, accent, helper) { count ->
+            ball.updateBadge(count)
+        }
 
         // BALL
         ball = FloatingBall(this, accent) {
