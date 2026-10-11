@@ -11,8 +11,8 @@ android {
         applicationId "com.appdony.app"
         minSdk 21
         targetSdk 34
-        versionCode 1114
-        versionName "1.1.14"
+        versionCode 1115
+        versionName "1.1.15"
     }
 
     signingConfigs {
