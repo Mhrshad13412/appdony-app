@@ -3,7 +3,7 @@ package com.appdony.app
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.res.ColorStateList
+import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.Color
@@ -17,12 +17,13 @@ import android.view.Gravity
 import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.LinearInterpolator
+import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
+import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
-import android.widget.ProgressBar
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowInsetsControllerCompat
@@ -31,48 +32,41 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private lateinit var splashView: FrameLayout
-    private lateinit var topProgress: ProgressBar
+    private lateinit var miniLoader: SpinnerLoader
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // ============ 🌟 ست کردن رنگ Status Bar ============
         val isDark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         val splashBg = if (isDark) Color.parseColor("#001C1A") else Color.WHITE
-        val accentColor = if (isDark) Color.parseColor("#4DD0C7") else Color.parseColor("#0D7377")
 
-        // رنگ نوار بالا (Status Bar) — سفید در روشن، تیره در تاریک
         window.statusBarColor = splashBg
-
-        // رنگ آیکون‌های نوار بالا (ساعت، باتری، وای‌فای)
-        // در حالت روشن: آیکون‌های تیره، در حالت تاریک: آیکون‌های روشن
         val wic = WindowInsetsControllerCompat(window, window.decorView)
         wic.isAppearanceLightStatusBars = !isDark
 
-        // ============ UI ============
+        clearCacheIfVersionChanged()
+
         val root = FrameLayout(this)
 
-        // SPLASH
+        // ============ SPLASH ============
         splashView = FrameLayout(this).apply {
             setBackgroundColor(splashBg)
         }
-        val loader = SpinnerLoader(this, isDark)
-        val loaderParams = FrameLayout.LayoutParams(260, 260)
+        val loader = SpinnerLoader(this, isDark, 30f)  // ⭐ ضخامت ۳۰
+        val loaderParams = FrameLayout.LayoutParams(280, 280)
         loaderParams.gravity = Gravity.CENTER
         splashView.addView(loader, loaderParams)
 
-        // نوار پیشرفت بالای صفحه
-        topProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            max = 100
-            visibility = View.GONE
-            progressTintList = ColorStateList.valueOf(accentColor)
-            progressBackgroundTintList = ColorStateList.valueOf(Color.TRANSPARENT)
-        }
-        val topBarParams = FrameLayout.LayoutParams(-1, 8)
-        topBarParams.gravity = Gravity.TOP
+        // ============ 🌟 لودینگ کوچیک گوشه بالا راست (جایگزین نوار سبز) ============
+        miniLoader = SpinnerLoader(this, isDark, 8f)  // ضخامت نازک‌تر برای کوچیکه
+        val miniParams = FrameLayout.LayoutParams(70, 70)
+        miniParams.gravity = Gravity.TOP or Gravity.END
+        miniParams.topMargin = 30
+        miniParams.rightMargin = 30
+        miniLoader.visibility = View.GONE
 
-        // WEBVIEW
+        // ============ WEBVIEW ============
         webView = WebView(this).apply {
             visibility = View.GONE
             setBackgroundColor(splashBg)
@@ -92,38 +86,27 @@ class MainActivity : AppCompatActivity() {
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                     super.onPageStarted(view, url, favicon)
-                    topProgress.visibility = View.VISIBLE
-                    topProgress.progress = 10
+                    miniLoader.visibility = View.VISIBLE
                 }
 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
-                    topProgress.progress = 100
                     Handler(Looper.getMainLooper()).postDelayed({
-                        topProgress.visibility = View.GONE
-                    }, 250)
+                        miniLoader.visibility = View.GONE
+                    }, 300)
                     injectCustomCSS()
                 }
             }
 
-            webChromeClient = object : WebChromeClient() {
-                override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                    super.onProgressChanged(view, newProgress)
-                    topProgress.progress = newProgress
-                    if (newProgress >= 100) {
-                        Handler(Looper.getMainLooper()).postDelayed({
-                            topProgress.visibility = View.GONE
-                        }, 250)
-                    }
-                }
-            }
+            webChromeClient = WebChromeClient()
 
-            loadUrl("https://appdony.ir/")
+            val cacheBuster = System.currentTimeMillis() / (1000 * 60 * 60 * 24)
+            loadUrl("https://appdony.ir/?v=$cacheBuster")
         }
 
         root.addView(splashView, FrameLayout.LayoutParams(-1, -1))
         root.addView(webView, FrameLayout.LayoutParams(-1, -1))
-        root.addView(topProgress, topBarParams)
+        root.addView(miniLoader, miniParams)
         setContentView(root)
 
         Handler(Looper.getMainLooper()).postDelayed({
@@ -148,13 +131,33 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    // لودینگ دایره‌ای
-    class SpinnerLoader(context: Context, private val isDark: Boolean) : View(context) {
-        private val strokeWidth = 18f
+    private fun clearCacheIfVersionChanged() {
+        val prefs: SharedPreferences = getSharedPreferences("appdony_prefs", MODE_PRIVATE)
+        val savedVersion = prefs.getInt("last_version", -1)
+        val currentVersion = try {
+            packageManager.getPackageInfo(packageName, 0).versionCode
+        } catch (e: Exception) { -1 }
+
+        if (savedVersion != currentVersion) {
+            WebView(this).apply {
+                clearCache(true)
+                clearHistory()
+                clearFormData()
+                destroy()
+            }
+            CookieManager.getInstance().removeAllCookies(null)
+            CookieManager.getInstance().flush()
+            WebStorage.getInstance().deleteAllData()
+            prefs.edit().putInt("last_version", currentVersion).apply()
+        }
+    }
+
+    // ============ لودینگ دایره‌ای — ضخامت قابل تنظیم ============
+    class SpinnerLoader(context: Context, private val isDark: Boolean, private val strokeW: Float) : View(context) {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
-            strokeWidth = strokeWidth
+            strokeWidth = strokeW
         }
         private val rect = RectF()
         private val colorMain = if (isDark) Color.parseColor("#4DD0C7") else Color.parseColor("#0D7377")
@@ -186,7 +189,7 @@ class MainActivity : AppCompatActivity() {
             super.onDraw(canvas)
             val cx = width / 2f
             val cy = height / 2f
-            val r = (minOf(width, height) - strokeWidth) / 2f
+            val r = (minOf(width, height) - strokeW) / 2f
             rect.set(cx - r, cy - r, cx + r, cy + r)
             paint.shader = SweepGradient(cx, cy,
                 intArrayOf(colorMain, colorLight, colorTransparent, colorMain),
@@ -198,7 +201,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // تزریق CSS
     private fun injectCustomCSS() {
         val js = """
             (function() {
