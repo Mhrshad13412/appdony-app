@@ -11,8 +11,8 @@ android {
         applicationId "com.appdony.app"
         minSdk 21
         targetSdk 34
-        versionCode 119
-        versionName "1.1.9"
+        versionCode 1110
+        versionName "1.1.10"
     }
 
     buildTypes {
