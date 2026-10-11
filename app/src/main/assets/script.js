@@ -2,29 +2,34 @@
     if (window._appdonyInit) return;
     window._appdonyInit = true;
 
+    // ⭐ به اندروید میگیم ناوبری شروع شد
     function notifyNavStart() {
         if (window.AppdonyBridge) {
             try { window.AppdonyBridge.onNavStart(); } catch(e) {}
         }
     }
 
-    function notifyFly(el) {
-        if (!el || !window.AppdonyBridge) return;
-        var rect = el.getBoundingClientRect();
-        try {
-            window.AppdonyBridge.onDownloadFly(
-                rect.left + rect.width / 2,
-                rect.top + rect.height / 2
-            );
-        } catch(e) {}
+    // ⭐ آخرین کلیک کاربر رو به اندروید می‌فرستیم
+    function recordClick(x, y) {
+        if (window.AppdonyBridge) {
+            try { window.AppdonyBridge.onAnyClick(x, y); } catch(e) {}
+        }
     }
 
-    document.addEventListener('click', function(e) {
-        var dlBtn = e.target.closest('a[href*=".apk"], a[href*=".zip"], a[href*=".obb"], [class*="download-btn"], [class*="btn-download"], button[class*="download"]');
-        if (dlBtn) {
-            notifyFly(dlBtn);
-            return;
+    // ثبت موقعیت هر کلیک (لمسی)
+    document.addEventListener('touchstart', function(e) {
+        if (e.touches && e.touches[0]) {
+            recordClick(e.touches[0].clientX, e.touches[0].clientY);
         }
+    }, { passive: true, capture: true });
+
+    // ثبت موقعیت هر کلیک (ماوس/دسکتاپ)
+    document.addEventListener('click', function(e) {
+        recordClick(e.clientX, e.clientY);
+    }, true);
+
+    // ⭐⭐ کلیک روی منو → دایره + notify
+    document.addEventListener('click', function(e) {
         var nav = e.target.closest('.bottom-nav-item, .bottom-nav a, .cat-link');
         if (nav) {
             notifyNavStart();
@@ -53,6 +58,7 @@
         setTimeout(function() { if (circle.parentNode) circle.parentNode.removeChild(circle); }, 700);
     }
 
+    // ⭐ وقتی محتوای جدید اومد، به اندروید بگو
     if (!window._appdonyContentObserver) {
         var contentTarget = document.querySelector('main, #main, .content, .site-content') || document.body;
         window._appdonyContentObserver = new MutationObserver(function() {
@@ -63,6 +69,7 @@
         window._appdonyContentObserver.observe(contentTarget, { childList: true });
     }
 
+    // افکت ضربه
     document.addEventListener('touchstart', function(e) {
         var t = e.target.closest('a, button, [class*="btn"], [class*="button"], [role="button"]');
         if (t) {
