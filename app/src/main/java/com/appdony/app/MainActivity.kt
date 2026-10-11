@@ -49,6 +49,11 @@ class MainActivity : AppCompatActivity() {
     private val minLoaderTime = 250L
     private val handler = Handler(Looper.getMainLooper())
 
+    // ⭐ آخرین موقعیت کلیک کاربر
+    private var lastClickX = 0f
+    private var lastClickY = 0f
+    private var lastClickTime = 0L
+
     private val maxLoaderRunnable = Runnable { hideLoader() }
 
     private val downloadReceiver = object : BroadcastReceiver() {
@@ -88,18 +93,18 @@ class MainActivity : AppCompatActivity() {
 
         root = FrameLayout(this)
 
-        // ============ SPLASH ============
+        // SPLASH
         splashView = FrameLayout(this).apply { setBackgroundColor(splashBg) }
         splashView.addView(SpinnerLoader(this, isDark, 30f),
             FrameLayout.LayoutParams(280, 280).apply { gravity = Gravity.CENTER })
 
-        // ============ MINI LOADER ============
+        // MINI LOADER
         miniLoader = SpinnerLoader(this, isDark, 18f).apply { visibility = View.GONE }
 
-        // ============ PANEL ============
+        // PANEL
         panel = DownloadPanel(this, isDark, accent, helper)
 
-        // ============ BALL ============
+        // BALL
         ball = FloatingBall(this, accent) {
             if (panel.isOpen) panel.close() else panel.open()
         }
@@ -112,7 +117,7 @@ class MainActivity : AppCompatActivity() {
             gravity = Gravity.TOP or Gravity.START
         }
 
-        // ============ WEBVIEW ============
+        // WEBVIEW
         val initialUrl = intent?.data?.toString()
             ?: "https://appdony.ir/?v=${System.currentTimeMillis() / (1000 * 60 * 60 * 24)}"
 
@@ -137,8 +142,10 @@ class MainActivity : AppCompatActivity() {
 
             addJavascriptInterface(object {
                 @JavascriptInterface
-                fun onDownloadFly(cssX: Float, cssY: Float) {
-                    runOnUiThread { flyIconToBall(cssX, cssY) }
+                fun onAnyClick(x: Float, y: Float) {
+                    lastClickX = x
+                    lastClickY = y
+                    lastClickTime = System.currentTimeMillis()
                 }
 
                 @JavascriptInterface
@@ -188,7 +195,12 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            // ⭐⭐⭐ اینجا انیمیشن پرنده رو از موقعیت آخرین کلیک راه می‌ندازیم
             setDownloadListener { url, ua, cd, mt, _ ->
+                // اول انیمیشن رو نشون بده (با کمی تاخیر تا درست بمونه)
+                triggerFlyerFromLastClick()
+
+                // بعد دانلود رو شروع کن
                 val id = helper.startDownload(url, ua, cd, mt)
                 if (id > 0) {
                     Toast.makeText(this@MainActivity, "دانلود شروع شد", Toast.LENGTH_SHORT).show()
@@ -233,7 +245,18 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    // ============ انیمیشن پرنده ============
+    // ⭐ اگر آخرین کلیک کمتر از ۳ ثانیه پیش بوده، انیمیشن رو اجرا کن
+    private fun triggerFlyerFromLastClick() {
+        val timeSinceClick = System.currentTimeMillis() - lastClickTime
+        if (timeSinceClick in 0..3000 && lastClickX > 0 && lastClickY > 0) {
+            // کمی تاخیر تا روی DownloadListener هم بیاد
+            handler.postDelayed({
+                flyIconToBall(lastClickX, lastClickY)
+            }, 150)
+        }
+    }
+
+    // انیمیشن پرنده
     private fun flyIconToBall(cssX: Float, cssY: Float) {
         val density = resources.displayMetrics.density
         val startX = cssX * density
@@ -309,7 +332,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ============ لودینگ ============
+    // لودینگ
     private fun showLoader() {
         loaderShownAt = System.currentTimeMillis()
         miniLoader.visibility = View.VISIBLE
@@ -354,7 +377,7 @@ class MainActivity : AppCompatActivity() {
         handler.removeCallbacks(maxLoaderRunnable)
     }
 
-    // ============ CSS فقط ============
+    // CSS فقط
     private fun injectCustomCSS() {
         try {
             val css = assets.open("style.css").bufferedReader().use { it.readText() }
@@ -382,7 +405,7 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) {}
     }
 
-    // ============ اسکریپت — فقط یه بار ============
+    // اسکریپت — فقط یه بار
     private fun injectScript() {
         try {
             val js = assets.open("script.js").bufferedReader().use { it.readText() }
