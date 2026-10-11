@@ -11,7 +11,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 
-class BallMenu(private val context: Context, private val accent: Int) {
+class BallMenu(private val context: Context, private val accentProvider: () -> Int) {
 
     val view: FrameLayout = FrameLayout(context).apply {
         visibility = View.GONE
