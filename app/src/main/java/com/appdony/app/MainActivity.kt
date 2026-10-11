@@ -64,6 +64,10 @@ class MainActivity : AppCompatActivity() {
     private var accent = 0
     private var cssInjectedOnce = false
 
+    // ⭐ مدیریت لودینگ داینامیک
+    private var loaderShownAt = 0L
+    private val minLoaderTime = 250L
+
     private val refreshHandler = Handler(Looper.getMainLooper())
     private val refreshRunnable = object : Runnable {
         override fun run() {
@@ -81,22 +85,28 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var showLoaderRunnable: Runnable? = null
-    private val maxLoaderRunnable = Runnable { hideLoader() }
 
+    // ⭐ لودینگ داینامیک — بدون تایم فیکس
     private fun hideLoader() {
         showLoaderRunnable?.let { refreshHandler.removeCallbacks(it) }
-        refreshHandler.removeCallbacks(maxLoaderRunnable)
-        miniLoader.visibility = View.GONE
-        ballWrapper.visibility = View.VISIBLE
+
+        val elapsed = System.currentTimeMillis() - loaderShownAt
+        if (elapsed < minLoaderTime && loaderShownAt > 0) {
+            refreshHandler.postDelayed({
+                miniLoader.visibility = View.GONE
+                ballWrapper.visibility = View.VISIBLE
+            }, minLoaderTime - elapsed)
+        } else {
+            miniLoader.visibility = View.GONE
+            ballWrapper.visibility = View.VISIBLE
+        }
+        loaderShownAt = 0L
     }
 
     private fun showLoaderIfNeeded() {
-        showLoaderRunnable = Runnable {
-            miniLoader.visibility = View.VISIBLE
-            ballWrapper.visibility = View.GONE
-        }
-        refreshHandler.postDelayed(showLoaderRunnable!!, 400)
-        refreshHandler.postDelayed(maxLoaderRunnable, 4000)
+        loaderShownAt = System.currentTimeMillis()
+        miniLoader.visibility = View.VISIBLE
+        ballWrapper.visibility = View.GONE
     }
 
     private val downloadCompleteReceiver = object : BroadcastReceiver() {
@@ -137,7 +147,7 @@ class MainActivity : AppCompatActivity() {
 
         val root = FrameLayout(this)
 
-        // SPLASH
+        // ============ SPLASH ============
         splashView = FrameLayout(this).apply { setBackgroundColor(splashBg) }
         val loader = SpinnerLoader(this, isDark, 30f)
         val lp = FrameLayout.LayoutParams(280, 280).apply { gravity = Gravity.CENTER }
@@ -147,7 +157,7 @@ class MainActivity : AppCompatActivity() {
         val miniParams = FrameLayout.LayoutParams(180, 180).apply { gravity = Gravity.CENTER }
         miniLoader.visibility = View.GONE
 
-        // BALL
+        // ============ BALL ============
         ballWrapper = FrameLayout(this)
         val ballSize = 120
 
@@ -186,7 +196,7 @@ class MainActivity : AppCompatActivity() {
             gravity = Gravity.TOP or Gravity.START
         }
 
-        // PANEL
+        // ============ PANEL ============
         downloadPanel = FrameLayout(this).apply {
             setBackgroundColor(Color.parseColor("#CC000000"))
             visibility = View.GONE
@@ -249,7 +259,7 @@ class MainActivity : AppCompatActivity() {
 
         downloadPanel.addView(panelBox, panelBoxParams)
 
-        // WEBVIEW
+        // ============ WEBVIEW ============
         val initialUrl = intent?.data?.toString() ?: "https://appdony.ir/?v=${System.currentTimeMillis() / (1000 * 60 * 60 * 24)}"
 
         webView = WebView(this).apply {
@@ -283,14 +293,12 @@ class MainActivity : AppCompatActivity() {
                     injectCustomCSS()
                 }
 
-                // ⭐ وقتی صفحه شروع به رندر کرد (قبل از کامل شدن)
                 override fun onPageCommitVisible(view: WebView?, url: String?) {
                     super.onPageCommitVisible(view, url)
                     hideLoader()
                     injectCustomCSS()
                 }
 
-                // ⭐ وقتی URL عوض شد (برای AJAX)
                 override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                     super.doUpdateVisitedHistory(view, url, isReload)
                     hideLoader()
@@ -740,7 +748,6 @@ class MainActivity : AppCompatActivity() {
         refreshHandler.removeCallbacks(refreshRunnable)
         refreshHandler.removeCallbacks(hideBallRunnable)
         showLoaderRunnable?.let { refreshHandler.removeCallbacks(it) }
-        refreshHandler.removeCallbacks(maxLoaderRunnable)
     }
 
     class SpinnerLoader(context: Context, private val isDark: Boolean, private val strokeW: Float) : View(context) {
@@ -790,17 +797,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ⭐ تزریق CSS با MutationObserver — CSS همیشه می‌مونه!
+    // ⭐ تزریق CSS با MutationObserver
     private fun injectCustomCSS() {
         try {
             val css = assets.open("style.css").bufferedReader().use { it.readText() }
             val scriptJs = assets.open("script.js").bufferedReader().use { it.readText() }
             val escapedCss = escapeForJs(css)
 
-            // ⭐ کد JS با MutationObserver که همیشه CSS رو تزریق می‌کنه
             val injectJs = """
                 (function() {
-                    // تابعی که CSS رو تزریق می‌کنه
                     function injectCss() {
                         if (document.getElementById('appdony-custom-style')) return;
                         var style = document.createElement('style');
@@ -815,13 +820,10 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
 
-                    // اولین تزریق
                     injectCss();
 
-                    // اگه قبلاً observer نذاشتیم، الان بذار
                     if (!window._appdonyObserver) {
                         window._appdonyObserver = new MutationObserver(function(mutations) {
-                            // فقط اگه style حذف شده، دوباره تزریق کن
                             if (!document.getElementById('appdony-custom-style')) {
                                 injectCss();
                             }
@@ -832,7 +834,6 @@ class MainActivity : AppCompatActivity() {
                         });
                     }
 
-                    // یک فاصله‌ی دور به عنوان پشتیبان
                     if (!window._appdonyInterval) {
                         window._appdonyInterval = setInterval(function() {
                             if (!document.getElementById('appdony-custom-style')) {
@@ -841,7 +842,6 @@ class MainActivity : AppCompatActivity() {
                         }, 1500);
                     }
 
-                    // اسکریپت لمسی رو هم اجرا کن
                     try {
                         $scriptJs
                     } catch(e) {
