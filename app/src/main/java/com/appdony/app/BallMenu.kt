@@ -7,7 +7,6 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 
@@ -41,25 +40,21 @@ class BallMenu(private val context: Context, private val accentProvider: () -> I
     fun setOnSettings(cb: () -> Unit) { onSettings = cb }
 
     fun show(anchorX: Float, anchorY: Float, ballSize: Int) {
-        val isDark = SettingsManager(context).isDark()
-        val accent = accentProvider()
-        
-        // ⭐ پس‌زمینه تیره و مینیمال (مثل تصویر اول)
-        val bg = if (isDark) Color.parseColor("#1A1A1A") else Color.parseColor("#222222")
-        val txt = Color.WHITE
+        // ⭐ همیشه تیره، مینیمال — مثل تصویر مرجع
+        val bg = Color.parseColor("#1A1A1A")
 
-        menuBox.setPadding(dp(6), dp(6), dp(6), dp(6))
+        menuBox.setPadding(dp(4), dp(4), dp(4), dp(4))
         menuBox.background = GradientDrawable().apply {
             setColor(bg)
-            cornerRadius = dp(20).toFloat()
+            cornerRadius = dp(18).toFloat()
         }
 
         menuBox.removeAllViews()
-        menuBox.addView(item(android.R.drawable.stat_sys_download, "دانلودها", txt, accent) {
+        menuBox.addView(makeItem("دانلودها") {
             hide(); onDownloads?.invoke()
         })
         menuBox.addView(divider())
-        menuBox.addView(item(android.R.drawable.ic_menu_manage, "تنظیمات", txt, accent) {
+        menuBox.addView(makeItem("تنظیمات") {
             hide(); onSettings?.invoke()
         })
 
@@ -69,12 +64,14 @@ class BallMenu(private val context: Context, private val accentProvider: () -> I
             val h = menuBox.height
             val screenW = view.width
             val m = dp(10).toFloat()
-            val gap = dp(6).toFloat()
+            val gap = dp(8).toFloat()
 
+            // راست‌چین نسبت به توپ
             var x = anchorX + ballSize - w
             if (x + w > screenW - m) x = screenW - w - m
             if (x < m) x = m
 
+            // بالای توپ
             var y = anchorY - h - gap
             val pivotY: Float
             if (y < m) {
@@ -111,27 +108,20 @@ class BallMenu(private val context: Context, private val accentProvider: () -> I
         isOpen = false
     }
 
-    private fun item(icon: Int, label: String, txt: Int, accent: Int, cb: () -> Unit) = LinearLayout(context).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(18), dp(14), dp(22), dp(14))
+    // ⭐ فقط متن، وسط‌چین، بدون آیکون
+    private fun makeItem(label: String, cb: () -> Unit): TextView = TextView(context).apply {
+        text = label
+        textSize = 15f
+        setTextColor(Color.WHITE)
+        typeface = android.graphics.Typeface.DEFAULT_BOLD
+        gravity = Gravity.CENTER
+        setPadding(dp(38), dp(14), dp(38), dp(14))
         setOnClickListener { cb() }
-        addView(ImageView(context).apply {
-            setImageResource(icon)
-            setColorFilter(accent) // ⭐ آیکون با رنگ تم
-            layoutParams = LinearLayout.LayoutParams(dp(20), dp(20)).apply { marginEnd = dp(14) }
-        })
-        addView(TextView(context).apply {
-            text = label
-            textSize = 15f
-            setTextColor(txt)
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-        })
     }
 
     private fun divider() = View(context).apply {
         layoutParams = LinearLayout.LayoutParams(-1, dp(1)).apply {
-            marginStart = dp(18); marginEnd = dp(18)
+            marginStart = dp(16); marginEnd = dp(16)
         }
         setBackgroundColor(Color.parseColor("#2A2A2A"))
     }
