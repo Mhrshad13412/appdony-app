@@ -1,8 +1,17 @@
+/* ⭐ استفاده از متغیر رنگ تم — توسط script.js تنظیم میشه */
+:root {
+    --appdony-accent: #0D7377;
+    --appdony-accent-10: rgba(13, 115, 119, 0.10);
+    --appdony-accent-20: rgba(13, 115, 119, 0.20);
+    --appdony-accent-30: rgba(13, 115, 119, 0.30);
+}
+
 * {
     -webkit-tap-highlight-color: transparent !important;
     -webkit-touch-callout: none !important;
 }
 
+/* ===== دکمه‌های اصلی سایت ===== */
 button:not(.bottom-nav-item):not(.device-chip):not(.cat-link),
 input[type="submit"], input[type="button"],
 .elementor-button, a.btn-install,
@@ -18,56 +27,119 @@ input[type="submit"]:active, .elementor-button:active, a.btn-install:active {
     transform: scale(0.95) !important;
 }
 
+/* ===== نوار پایین ===== */
 .bottom-nav, .bottom-nav *, .bottom-nav-item, .bottom-nav-item * {
     -webkit-tap-highlight-color: transparent !important;
     outline: none !important;
 }
 
-.bottom-nav a, .bottom-nav-item { background-color: transparent !important; }
-.bottom-nav a:active, .bottom-nav-item:active { background-color: transparent !important; }
+.bottom-nav a, .bottom-nav-item {
+    background-color: transparent !important;
+}
 
+.bottom-nav a:active, .bottom-nav-item:active {
+    background-color: transparent !important;
+}
+
+/* ⭐ تب فعال نوار پایین — با رنگ تم */
 .bottom-nav .active,
 .bottom-nav-item.active,
 .bottom-nav a.active,
 .bottom-nav a[aria-current="page"],
 .bottom-nav li.active > a {
-    background-color: rgba(13, 115, 119, 0.12) !important;
+    background-color: var(--appdony-accent-20) !important;
     border-radius: 50px !important;
-    color: #0D7377 !important;
+    color: var(--appdony-accent) !important;
     box-shadow: none !important;
     padding: 6px 20px !important;
     animation: appdonyPillIn 0.55s cubic-bezier(0.34, 1.4, 0.64, 1) !important;
 }
 
 @keyframes appdonyPillIn {
-    0% { background-color: rgba(13, 115, 119, 0) !important; transform: scale(0.85); opacity: 0.4; }
-    60% { background-color: rgba(13, 115, 119, 0.15) !important; transform: scale(1.03); opacity: 1; }
-    100% { background-color: rgba(13, 115, 119, 0.12) !important; transform: scale(1); opacity: 1; }
+    0% {
+        background-color: transparent !important;
+        transform: scale(0.85);
+        opacity: 0.4;
+    }
+    60% {
+        background-color: var(--appdony-accent-30) !important;
+        transform: scale(1.03);
+        opacity: 1;
+    }
+    100% {
+        background-color: var(--appdony-accent-20) !important;
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 
-.bottom-nav .active i, .bottom-nav .active svg, .bottom-nav .active span,
-.bottom-nav-item.active i, .bottom-nav-item.active span {
-    color: #0D7377 !important;
-    fill: #0D7377 !important;
+/* ⭐ آیکون‌های تب فعال — با رنگ تم */
+.bottom-nav .active i,
+.bottom-nav .active svg,
+.bottom-nav .active span,
+.bottom-nav-item.active i,
+.bottom-nav-item.active span {
+    color: var(--appdony-accent) !important;
+    fill: var(--appdony-accent) !important;
 }
 
-.cat-link { -webkit-tap-highlight-color: transparent !important; }
-
-input[type="text"], input[type="search"], input[type="email"],
-input[type="password"], textarea { border-radius: 16px !important; }
-
-/* ⭐⭐ انیمیشن ورود محتوای بخش جدید */
-@keyframes appdonyContentIn {
-    0% { opacity: 0; transform: translateY(20px); }
-    100% { opacity: 1; transform: translateY(0); }
+/* ===== نوار دسته‌بندی بالا ===== */
+.cat-link {
+    -webkit-tap-highlight-color: transparent !important;
 }
 
-/* ⭐⭐ انیمیشن fade عمومی برای تغییرات */
-.content, main, #main, .site-content {
-    transition: opacity 0.35s ease;
+.cat-link.active,
+.cat-link[aria-current],
+.cat-link[aria-current="page"] {
+    color: var(--appdony-accent) !important;
+    border-bottom-color: var(--appdony-accent) !important;
 }
 
-/* اسکرول‌بار سبز نازک */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-thumb { background: rgba(13, 115, 119, 0.5); border-radius: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
+/* ===== دکمه‌های اصلی سایت — با رنگ تم ===== */
+.btn-primary,
+.btn-install,
+a.btn-install,
+button[class*="download"],
+[class*="btn-download"],
+[class*="download-btn"],
+input[type="submit"] {
+    background-color: var(--appdony-accent) !important;
+    border-color: var(--appdony-accent) !important;
+}
+
+/* ===== لینک‌ها ===== */
+a {
+    color: var(--appdony-accent) !important;
+}
+
+/* ===== اینپوت‌ها ===== */
+input[type="text"],
+input[type="search"],
+input[type="email"],
+input[type="password"],
+textarea {
+    border-radius: 16px !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+    border-color: var(--appdony-accent) !important;
+    box-shadow: 0 0 0 3px var(--appdony-accent-20) !important;
+    outline: none !important;
+}
+
+/* ===== اسکرول‌بار ===== */
+::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--appdony-accent-30) !important;
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
