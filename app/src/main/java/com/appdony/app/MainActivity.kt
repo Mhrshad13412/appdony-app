@@ -117,7 +117,6 @@ class MainActivity : AppCompatActivity() {
 
         // BALL
         ball = FloatingBall(this, accent) {
-            // ⭐ توپ لمس شد → منو باز کن
             if (ballMenu.isOpen) ballMenu.hide()
             else ballMenu.show(ball.view.x, ball.view.y, ball.size)
         }
@@ -131,7 +130,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         // MENU
-        ballMenu = BallMenu(this, isDark, accent).apply {
+        ballMenu = BallMenu(this, accent).apply {
             setOnDownloads {
                 if (panel.isOpen) panel.close() else panel.open()
             }
@@ -158,7 +157,6 @@ class MainActivity : AppCompatActivity() {
                 setSupportMultipleWindows(false)
                 allowFileAccess = true
                 allowContentAccess = true
-                // ⭐ سایز فونت ذخیره‌شده
                 textZoom = settingsManager.getTextZoom()
             }
             setLayerType(View.LAYER_TYPE_HARDWARE, null)
@@ -278,28 +276,21 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    // ⭐ اعمال حالت شب/روز
+    // اعمال حالت شب/روز
     private fun applyTheme() {
         isDark = settingsManager.isDark()
         accent = if (isDark) Color.parseColor("#4DD0C7") else Color.parseColor("#0D7377")
         applyThemeCss()
     }
 
-    // ⭐ تزریق CSS حالت تاریک به سایت
+    // تزریق CSS حالت تاریک به سایت
     private fun applyThemeCss() {
         val css = if (settingsManager.isDark()) {
-            """
-            html {
-                filter: invert(1) hue-rotate(180deg) !important;
-                background: #0f0f0f !important;
-            }
-            img, video, iframe, canvas, svg, [style*="background-image"] {
-                filter: invert(1) hue-rotate(180deg) !important;
-            }
-            """
+            "html { filter: invert(1) hue-rotate(180deg) !important; background: #0f0f0f !important; } " +
+            "img, video, iframe, canvas, svg, [style*='background-image'] { filter: invert(1) hue-rotate(180deg) !important; }"
         } else ""
 
-        val escaped = css.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ")
+        val escaped = css.replace("\\", "\\\\").replace("\"", "\\\"")
 
         val js = """
             (function() {
@@ -316,7 +307,7 @@ class MainActivity : AppCompatActivity() {
         webView.evaluateJavascript(js, null)
     }
 
-    // ⭐ اعمال سایز فونت
+    // اعمال سایز فونت
     private fun applyFontSize() {
         webView.settings.textZoom = settingsManager.getTextZoom()
     }
