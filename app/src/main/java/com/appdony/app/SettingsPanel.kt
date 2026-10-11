@@ -189,6 +189,8 @@ class SettingsPanel(
             setOnClickListener {
                 settingsManager.accentTheme = opt.key
                 rebuildAccentPicker()
+                rebuildThemeToggle()
+                rebuildFontToggle()
                 refreshColors()
                 onAccentChanged()
             }
