@@ -6,7 +6,6 @@ import android.net.Uri
 import android.os.Environment
 import android.webkit.CookieManager
 import android.webkit.URLUtil
-import java.io.File
 
 data class DownloadItem(
     val id: Long,
@@ -41,6 +40,13 @@ class DownloadHelper(private val context: Context) {
             request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
             mimetype?.let { request.setMimeType(it) }
+
+            // ⭐ دانلود مقاوم در برابر قطعی نت
+            request.setAllowedOverMetered(true)
+            request.setAllowedOverRoaming(true)
+            request.setAllowedNetworkTypes(
+                DownloadManager.Request.NETWORK_WIFI or DownloadManager.Request.NETWORK_MOBILE
+            )
 
             manager.enqueue(request)
         } catch (e: Exception) {
