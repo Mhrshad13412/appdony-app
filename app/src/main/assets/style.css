@@ -56,6 +56,18 @@ input[type="submit"]:active, .elementor-button:active, a.btn-install:active {
 input[type="text"], input[type="search"], input[type="email"],
 input[type="password"], textarea { border-radius: 16px !important; }
 
+/* ⭐⭐ انیمیشن ورود محتوای بخش جدید */
+@keyframes appdonyContentIn {
+    0% { opacity: 0; transform: translateY(20px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+/* ⭐⭐ انیمیشن fade عمومی برای تغییرات */
+.content, main, #main, .site-content {
+    transition: opacity 0.35s ease;
+}
+
+/* اسکرول‌بار سبز نازک */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-thumb { background: rgba(13, 115, 119, 0.5); border-radius: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
