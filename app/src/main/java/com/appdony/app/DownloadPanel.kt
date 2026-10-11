@@ -32,7 +32,6 @@ class DownloadPanel(
 ) {
 
     companion object {
-        // ⭐ کش سراسری تصاویر — بین همه‌ی رفرش‌ها باقی می‌مونه
         private val imageCache = LruCache<String, Bitmap>(30)
         private val downloading = ConcurrentHashMap<String, Boolean>()
     }
@@ -45,8 +44,6 @@ class DownloadPanel(
     private val panelBox: LinearLayout
     private val list: LinearLayout
     private val handler = Handler(Looper.getMainLooper())
-
-    // ⭐ فقط status text‌ها رو آپدیت می‌کنیم، نه کل UI رو
     private val statusViews = HashMap<Long, TextView>()
 
     private val refreshRunnable = object : Runnable {
@@ -59,6 +56,9 @@ class DownloadPanel(
         private set
 
     init {
+        val isDark = isDarkProvider()
+        val accent = accentProvider()
+
         panelBox = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(if (isDark) Color.parseColor("#1A1A1A") else Color.WHITE)
@@ -144,19 +144,19 @@ class DownloadPanel(
         handler.removeCallbacks(refreshRunnable)
     }
 
-    // ⭐ رفرش کامل — فقط وقتی تعداد یا وضعیت کلی عوض بشه
     fun fullRefresh() {
         list.removeAllViews()
         statusViews.clear()
         val items = helper.getAll()
 
         if (items.isEmpty()) {
+            val isDark = isDarkProvider()
             list.addView(TextView(context).apply {
                 text = "هنوز دانلودی نداری"
                 textSize = 15f
                 gravity = Gravity.CENTER
                 setPadding(0, 60, 0, 60)
-                setTextColor(Color.GRAY)
+                setTextColor(if (isDark) Color.GRAY else Color.parseColor("#999999"))
             })
             return
         }
@@ -164,23 +164,17 @@ class DownloadPanel(
         items.forEach { list.addView(createItem(it)) }
     }
 
-    // ⭐ رفرش سبک — فقط وضعیت متن‌ها رو آپدیت میکنه
     private fun softRefresh() {
         val items = helper.getAll()
-
-        // اگه تعداد عوض شده، رفرش کامل
         if (items.size != statusViews.size) {
             fullRefresh()
             return
         }
-
-        // فقط آپدیت متن وضعیت
         items.forEach { item ->
             statusViews[item.id]?.text = getStatusText(item)
         }
     }
 
-    // برای سازگاری با کد قبلی
     fun refresh() = fullRefresh()
 
     private fun getStatusText(item: DownloadItem): String {
@@ -198,6 +192,8 @@ class DownloadPanel(
     }
 
     private fun createItem(item: DownloadItem): View {
+        val isDark = isDarkProvider()
+        val accent = accentProvider()
         val textColor = if (isDark) Color.WHITE else Color.BLACK
         val cardBg = if (isDark) Color.parseColor("#2A2A2A") else Color.parseColor("#F5F5F5")
 
@@ -253,7 +249,6 @@ class DownloadPanel(
         }
         box.addView(statusTv, LinearLayout.LayoutParams(-1, -2))
 
-        // ⭐ ذخیره‌ی مرجع برای soft refresh
         statusViews[item.id] = statusTv
 
         val btnRow = LinearLayout(context).apply {
@@ -298,7 +293,7 @@ class DownloadPanel(
                     helper.cancel(item.id, item.title, helper.getIcon(item.id))
                     onBadgeChange(helper.getActiveCount())
                     fullRefresh()
-                    Toast.makeText(context, "لغو شد — می‌تونی بعداً دوباره شروع کنی", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "لغو شد", Toast.LENGTH_SHORT).show()
                 })
             }
             else -> {
@@ -329,16 +324,12 @@ class DownloadPanel(
         }
     }
 
-    // ⭐⭐⭐ لود تصویر با کش — آیکون قطع و وصل نمیشه
     private fun loadImageCached(url: String, imageView: ImageView) {
-        // توی کش هست؟ فوری نشون بده
         val cached = imageCache.get(url)
         if (cached != null) {
             imageView.setImageBitmap(cached)
             return
         }
-
-        // داره دانلود میشه؟ صبر کن
         if (downloading[url] == true) return
         downloading[url] = true
 
@@ -350,10 +341,7 @@ class DownloadPanel(
                 if (bmp != null) {
                     imageCache.put(url, bmp)
                     (context as? android.app.Activity)?.runOnUiThread {
-                        // ⭐ چک کن هنوز توی ویو هست
-                        if (imageView.parent != null) {
-                            imageView.setImageBitmap(bmp)
-                        }
+                        if (imageView.parent != null) imageView.setImageBitmap(bmp)
                     }
                 }
             } catch (_: Exception) {
