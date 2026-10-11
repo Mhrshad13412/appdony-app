@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Environment
 import android.webkit.CookieManager
 import android.webkit.URLUtil
+import org.json.JSONObject
 
 data class DownloadItem(
     val id: Long,
@@ -13,7 +14,10 @@ data class DownloadItem(
     val status: Int,
     val downloaded: Long,
     val total: Long,
-    val localUri: String?
+    val localUri: String?,
+    val isCancelled: Boolean = false,
+    val savedUrl: String? = null,
+    val savedIconUrl: String? = null
 )
 
 class DownloadHelper(private val context: Context) {
@@ -41,7 +45,6 @@ class DownloadHelper(private val context: Context) {
             request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
             mimetype?.let { request.setMimeType(it) }
 
-            // ⭐ دانلود مقاوم در برابر قطعی نت
             request.setAllowedOverMetered(true)
             request.setAllowedOverRoaming(true)
             request.setAllowedNetworkTypes(
@@ -54,20 +57,77 @@ class DownloadHelper(private val context: Context) {
         }
     }
 
+    // ⭐ لغو دانلود — ولی متادیتا رو نگه می‌داریم
+    fun cancel(id: Long, title: String, url: String, iconUrl: String?) {
+        try {
+            manager.remove(id)
+        } catch (_: Exception) {}
+
+        val json = JSONObject().apply {
+            put("title", title)
+            put("url", url)
+            put("icon", iconUrl ?: "")
+        }
+        getPrefs().edit().putString("cancelled_$id", json.toString()).apply()
+        getPrefs().edit().remove("icon_$id").apply()
+    }
+
+    // ⭐ شروع مجدد یه دانلود لغوشده
+    fun restartCancelled(id: Long): Long {
+        val raw = getPrefs().getString("cancelled_$id", null) ?: return -1
+        val json = try { JSONObject(raw) } catch (_: Exception) { return -1 }
+        val url = json.optString("url", "")
+        val iconUrl = json.optString("icon", "")
+        if (url.isEmpty()) return -1
+
+        val newId = startDownload(url, null, null, null)
+        if (newId > 0) {
+            getPrefs().edit().remove("cancelled_$id").apply()
+            if (iconUrl.isNotEmpty()) saveIcon(newId, iconUrl)
+        }
+        return newId
+    }
+
+    // ⭐ حذف واقعی (برای لغوشده‌ها)
+    fun removePermanently(id: Long) {
+        try { manager.remove(id) } catch (_: Exception) {}
+        getPrefs().edit().remove("cancelled_$id").apply()
+        getPrefs().edit().remove("icon_$id").apply()
+    }
+
     fun getAll(): List<DownloadItem> {
         val items = mutableListOf<DownloadItem>()
         val cursor = manager.query(DownloadManager.Query())
         while (cursor.moveToNext()) {
-            items.add(DownloadItem(
-                id = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_ID)),
-                title = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TITLE)) ?: "بدون نام",
-                status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS)),
-                downloaded = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)),
-                total = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)),
-                localUri = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI))
-            ))
+            val id = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_ID))
+            val title = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TITLE)) ?: "بدون نام"
+            val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+            val downloaded = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
+            val total = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
+            val localUri = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI))
+            items.add(DownloadItem(id, title, status, downloaded, total, localUri))
         }
         cursor.close()
+
+        // ⭐ افزودن لغو‌شده‌ها
+        getPrefs().all.forEach { (key, value) ->
+            if (key.startsWith("cancelled_") && value is String) {
+                val id = key.removePrefix("cancelled_").toLongOrNull() ?: return@forEach
+                val json = try { JSONObject(value) } catch (_: Exception) { return@forEach }
+                items.add(DownloadItem(
+                    id = id,
+                    title = json.optString("title", "لغو شده"),
+                    status = -100,
+                    downloaded = 0,
+                    total = 0,
+                    localUri = null,
+                    isCancelled = true,
+                    savedUrl = json.optString("url", ""),
+                    savedIconUrl = json.optString("icon", "")
+                ))
+            }
+        }
+
         return items.reversed()
     }
 
@@ -82,21 +142,13 @@ class DownloadHelper(private val context: Context) {
         return count
     }
 
-    fun remove(id: Long) {
-        manager.remove(id)
-        getSharedPreferences().edit().remove("icon_$id").apply()
-    }
-
     fun saveIcon(id: Long, url: String) {
-        getSharedPreferences().edit().putString("icon_$id", url).apply()
+        getPrefs().edit().putString("icon_$id", url).apply()
     }
 
-    fun getIcon(id: Long): String? {
-        return getSharedPreferences().getString("icon_$id", null)
-    }
+    fun getIcon(id: Long): String? = getPrefs().getString("icon_$id", null)
 
-    private fun getSharedPreferences() =
-        context.getSharedPreferences("appdony_icons", Context.MODE_PRIVATE)
+    private fun getPrefs() = context.getSharedPreferences("appdony_downloads", Context.MODE_PRIVATE)
 
     fun formatSize(bytes: Long): String {
         if (bytes <= 0) return "0 B"
