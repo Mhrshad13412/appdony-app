@@ -73,7 +73,6 @@ class MainActivity : AppCompatActivity() {
 
         settingsManager = SettingsManager(this)
         val isDark = settingsManager.isDark()
-        val accent = settingsManager.getAccent()
 
         val splashBg = if (isDark) Color.parseColor("#001C1A") else Color.WHITE
         window.statusBarColor = splashBg
@@ -287,7 +286,7 @@ class MainActivity : AppCompatActivity() {
         ball.updateColor()
     }
 
-    // ⭐ اعمال رنگ تم به سایت
+    // ⭐ اعمال رنگ تم به کل سایت
     private fun applyAccent() {
         ball.updateColor()
         val accentHex = String.format("#%06X", 0xFFFFFF and settingsManager.getAccent())
