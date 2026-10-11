@@ -57,28 +57,51 @@ class DownloadHelper(private val context: Context) {
         }
     }
 
-    // ⭐ لغو دانلود — ولی متادیتا رو نگه می‌داریم
-    fun cancel(id: Long, title: String, url: String, iconUrl: String?) {
+    // گرفتن URL واقعی از DownloadManager قبل از لغو
+    fun getUrl(id: Long): String {
+        return try {
+            val cursor = manager.query(DownloadManager.Query().setFilterById(id))
+            if (cursor.moveToFirst()) {
+                val uri = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_URI))
+                cursor.close()
+                uri ?: ""
+            } else {
+                cursor.close()
+                ""
+            }
+        } catch (_: Exception) {
+            ""
+        }
+    }
+
+    // لغو دانلود — URL واقعی رو از DownloadManager می‌گیریم
+    fun cancel(id: Long, title: String, iconUrl: String?) {
+        val realUrl = getUrl(id)
+
         try {
             manager.remove(id)
         } catch (_: Exception) {}
 
         val json = JSONObject().apply {
             put("title", title)
-            put("url", url)
+            put("url", realUrl)
             put("icon", iconUrl ?: "")
         }
         getPrefs().edit().putString("cancelled_$id", json.toString()).apply()
         getPrefs().edit().remove("icon_$id").apply()
     }
 
-    // ⭐ شروع مجدد یه دانلود لغوشده
+    // شروع مجدد
     fun restartCancelled(id: Long): Long {
         val raw = getPrefs().getString("cancelled_$id", null) ?: return -1
         val json = try { JSONObject(raw) } catch (_: Exception) { return -1 }
         val url = json.optString("url", "")
         val iconUrl = json.optString("icon", "")
-        if (url.isEmpty()) return -1
+
+        if (url.isEmpty()) {
+            getPrefs().edit().remove("cancelled_$id").apply()
+            return -1
+        }
 
         val newId = startDownload(url, null, null, null)
         if (newId > 0) {
@@ -88,7 +111,6 @@ class DownloadHelper(private val context: Context) {
         return newId
     }
 
-    // ⭐ حذف واقعی (برای لغوشده‌ها)
     fun removePermanently(id: Long) {
         try { manager.remove(id) } catch (_: Exception) {}
         getPrefs().edit().remove("cancelled_$id").apply()
@@ -109,7 +131,7 @@ class DownloadHelper(private val context: Context) {
         }
         cursor.close()
 
-        // ⭐ افزودن لغو‌شده‌ها
+        // افزودن لغو‌شده‌ها
         getPrefs().all.forEach { (key, value) ->
             if (key.startsWith("cancelled_") && value is String) {
                 val id = key.removePrefix("cancelled_").toLongOrNull() ?: return@forEach
