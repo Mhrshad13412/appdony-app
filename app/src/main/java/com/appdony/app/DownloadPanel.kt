@@ -221,7 +221,6 @@ class DownloadPanel(
             gravity = Gravity.CENTER
         }
 
-        // ⭐ دکمه‌ها بر اساس وضعیت
         when {
             // لغو شده → شروع مجدد + حذف کامل
             item.isCancelled -> {
@@ -244,14 +243,14 @@ class DownloadPanel(
                     refresh()
                 })
             }
-            // کامل شده → نصب + لغو(حذف فایل)
+            // کامل شده → نصب + حذف
             item.status == DownloadManager.STATUS_SUCCESSFUL && item.localUri != null -> {
                 btnRow.addView(makeBtn("نصب", accent) { installApk(item.localUri) })
                 btnRow.addView(View(context).apply {
                     layoutParams = LinearLayout.LayoutParams(14, 1)
                 })
                 btnRow.addView(makeBtn("حذف", Color.parseColor("#E53935")) {
-                    helper.cancel(item.id, item.title, item.localUri ?: "", helper.getIcon(item.id))
+                    helper.cancel(item.id, item.title, helper.getIcon(item.id))
                     onBadgeChange(helper.getActiveCount())
                     refresh()
                 })
@@ -259,13 +258,13 @@ class DownloadPanel(
             // در حال دانلود → لغو
             item.status == DownloadManager.STATUS_RUNNING || item.status == DownloadManager.STATUS_PENDING -> {
                 btnRow.addView(makeBtn("لغو", Color.parseColor("#FF9800")) {
-                    helper.cancel(item.id, item.title, "", helper.getIcon(item.id))
+                    helper.cancel(item.id, item.title, helper.getIcon(item.id))
                     onBadgeChange(helper.getActiveCount())
                     refresh()
-                    Toast.makeText(context, "لغو شد — می‌تونی بعداً ادامه بدی", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "لغو شد — می‌تونی بعداً دوباره شروع کنی", Toast.LENGTH_SHORT).show()
                 })
             }
-            // خطا خورده → حذف
+            // بقیه → حذف
             else -> {
                 btnRow.addView(makeBtn("حذف", Color.parseColor("#E53935")) {
                     helper.removePermanently(item.id)
