@@ -58,12 +58,10 @@ class MainActivity : AppCompatActivity() {
         loaderParams.gravity = Gravity.CENTER
         splashView.addView(loader, loaderParams)
 
-        // ============ لودینگ کوچیک گوشه بالا راست (مثل اصلی) ============
+        // ============ 🌟 لودینگ وسط صفحه (موقع لود صفحات) ============
         miniLoader = SpinnerLoader(this, isDark, 18f)
-        val miniParams = FrameLayout.LayoutParams(110, 110)
-        miniParams.gravity = Gravity.TOP or Gravity.END
-        miniParams.topMargin = 30
-        miniParams.rightMargin = 30
+        val miniParams = FrameLayout.LayoutParams(180, 180)
+        miniParams.gravity = Gravity.CENTER  // ⭐ وسط صفحه
         miniLoader.visibility = View.GONE
 
         // ============ WEBVIEW ============
@@ -201,7 +199,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ============ تزریق CSS ============
     private fun injectCustomCSS() {
         val js = """
             (function() {
