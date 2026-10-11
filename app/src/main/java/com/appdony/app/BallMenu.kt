@@ -20,7 +20,6 @@ class BallMenu(private val context: Context, private val accentProvider: () -> I
 
     private val menuBox: LinearLayout = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
-        setPadding(dp(6), dp(6), dp(6), dp(6))
     }
 
     var isOpen = false
@@ -29,15 +28,14 @@ class BallMenu(private val context: Context, private val accentProvider: () -> I
     private var onDownloads: (() -> Unit)? = null
     private var onSettings: (() -> Unit)? = null
 
+    private fun dp(v: Int) = (v * context.resources.displayMetrics.density).toInt()
+
     init {
-        val params = FrameLayout.LayoutParams(
+        view.addView(menuBox, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-        view.addView(menuBox, params)
+        ))
     }
-
-    private fun dp(value: Int): Int = (value * context.resources.displayMetrics.density).toInt()
 
     fun setOnDownloads(cb: () -> Unit) { onDownloads = cb }
     fun setOnSettings(cb: () -> Unit) { onSettings = cb }
@@ -45,55 +43,59 @@ class BallMenu(private val context: Context, private val accentProvider: () -> I
     fun show(anchorX: Float, anchorY: Float, ballSize: Int) {
         val isDark = SettingsManager(context).isDark()
         val accent = accentProvider()
-        val bgColor = if (isDark) Color.parseColor("#1F1F1F") else Color.WHITE
-        val textColor = if (isDark) Color.WHITE else Color.parseColor("#222222")
+        val bg = if (isDark) Color.parseColor("#1F1F1F") else Color.WHITE
+        val txt = if (isDark) Color.WHITE else Color.parseColor("#222222")
 
+        menuBox.setPadding(dp(4), dp(4), dp(4), dp(4))
         menuBox.background = GradientDrawable().apply {
-            setColor(bgColor)
-            cornerRadius = dp(18).toFloat()
-            setStroke(dp(1), if (isDark) Color.parseColor("#3A3A3A") else Color.parseColor("#E0E0E0"))
+            setColor(bg)
+            cornerRadius = dp(16).toFloat()
+            setStroke(dp(1), if (isDark) Color.parseColor("#333333") else Color.parseColor("#E5E5E5"))
         }
 
         menuBox.removeAllViews()
-
-        menuBox.addView(makeItem(android.R.drawable.stat_sys_download, "دانلودها", textColor, accent) {
-            hide()
-            onDownloads?.invoke()
+        menuBox.addView(item(android.R.drawable.stat_sys_download, "دانلودها", txt, accent) {
+            hide(); onDownloads?.invoke()
         })
-
-        menuBox.addView(makeDivider(isDark))
-
-        menuBox.addView(makeItem(android.R.drawable.ic_menu_manage, "تنظیمات", textColor, accent) {
-            hide()
-            onSettings?.invoke()
+        menuBox.addView(divider(isDark))
+        menuBox.addView(item(android.R.drawable.ic_menu_manage, "تنظیمات", txt, accent) {
+            hide(); onSettings?.invoke()
         })
 
         view.visibility = View.VISIBLE
         view.post {
-            val menuW = menuBox.width
-            val menuH = menuBox.height
+            val w = menuBox.width
+            val h = menuBox.height
             val screenW = view.width
-            val margin = dp(12).toFloat()
-            val gap = dp(8).toFloat()
+            val m = dp(10).toFloat()
+            val gap = dp(6).toFloat()
 
-            var x = anchorX + ballSize - menuW
-            if (x < margin) x = margin
-            if (x + menuW > screenW - margin) x = screenW - menuW - margin
+            // راست‌چین نسبت به توپ
+            var x = anchorX + ballSize - w
+            if (x + w > screenW - m) x = screenW - w - m
+            if (x < m) x = m
 
-            var y = anchorY - menuH - gap
-            if (y < margin) y = anchorY + ballSize + gap
+            // بالای توپ
+            var y = anchorY - h - gap
+            val pivotY: Float
+            if (y < m) {
+                y = anchorY + ballSize + gap
+                pivotY = 0f // از بالا باز میشه
+            } else {
+                pivotY = h.toFloat() // از پایین باز میشه
+            }
 
             menuBox.x = x
             menuBox.y = y
-
-            menuBox.scaleX = 0.85f
-            menuBox.scaleY = 0.85f
+            menuBox.pivotX = w.toFloat()  // از گوشه راست
+            menuBox.pivotY = pivotY
+            menuBox.scaleX = 0.6f
+            menuBox.scaleY = 0.6f
             menuBox.alpha = 0f
-            menuBox.pivotX = menuW.toFloat()
-            menuBox.pivotY = menuH.toFloat()
             menuBox.animate()
                 .scaleX(1f).scaleY(1f).alpha(1f)
-                .setDuration(200)
+                .setDuration(240)
+                .setInterpolator(android.view.animation.OvershootInterpolator(1.2f))
                 .start()
         }
 
@@ -103,50 +105,35 @@ class BallMenu(private val context: Context, private val accentProvider: () -> I
     fun hide() {
         if (!isOpen) return
         menuBox.animate()
-            .scaleX(0.85f).scaleY(0.85f).alpha(0f)
+            .scaleX(0.6f).scaleY(0.6f).alpha(0f)
             .setDuration(160)
             .withEndAction { view.visibility = View.GONE }
             .start()
         isOpen = false
     }
 
-    private fun makeItem(iconRes: Int, label: String, textColor: Int, accent: Int, onClick: () -> Unit): LinearLayout {
-        return LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(12), dp(20), dp(12))
-            background = GradientDrawable().apply {
-                setColor(Color.TRANSPARENT)
-                cornerRadius = dp(14).toFloat()
-            }
-            setOnClickListener { onClick() }
-
-            addView(ImageView(context).apply {
-                setImageResource(iconRes)
-                setColorFilter(accent)
-                layoutParams = LinearLayout.LayoutParams(dp(22), dp(22)).apply {
-                    marginEnd = dp(12)
-                }
-            })
-
-            addView(TextView(context).apply {
-                text = label
-                textSize = 15f
-                setTextColor(textColor)
-                typeface = android.graphics.Typeface.DEFAULT_BOLD
-            })
-        }
+    private fun item(icon: Int, label: String, txt: Int, accent: Int, cb: () -> Unit) = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(dp(14), dp(10), dp(18), dp(10))
+        setOnClickListener { cb() }
+        addView(ImageView(context).apply {
+            setImageResource(icon)
+            setColorFilter(accent)
+            layoutParams = LinearLayout.LayoutParams(dp(18), dp(18)).apply { marginEnd = dp(10) }
+        })
+        addView(TextView(context).apply {
+            text = label
+            textSize = 14f
+            setTextColor(txt)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        })
     }
 
-    private fun makeDivider(isDark: Boolean): View {
-        return View(context).apply {
-            layoutParams = LinearLayout.LayoutParams(-1, dp(1)).apply {
-                topMargin = dp(2)
-                bottomMargin = dp(2)
-                marginStart = dp(16)
-                marginEnd = dp(16)
-            }
-            setBackgroundColor(if (isDark) Color.parseColor("#333333") else Color.parseColor("#E8E8E8"))
+    private fun divider(isDark: Boolean) = View(context).apply {
+        layoutParams = LinearLayout.LayoutParams(-1, dp(1)).apply {
+            marginStart = dp(10); marginEnd = dp(10)
         }
+        setBackgroundColor(if (isDark) Color.parseColor("#333333") else Color.parseColor("#EEEEEE"))
     }
 }
