@@ -36,7 +36,7 @@ class SettingsPanel(
     private var fontToggleContainer: LinearLayout? = null
     private var accentContainer: LinearLayout? = null
 
-    private fun dp(value: Int): Int = (value * context.resources.displayMetrics.density).toInt()
+    private fun dp(v: Int) = (v * context.resources.displayMetrics.density).toInt()
 
     init {
         panelBox = LinearLayout(context).apply {
@@ -68,17 +68,14 @@ class SettingsPanel(
         }
         panelBox.addView(title)
 
-        // ⭐ Scroll برای وقتی محتوا زیاده
         val scroll = ScrollView(context)
         val content = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
         }
         scroll.addView(content)
-        panelBox.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f).apply {
-            height = 0
-        })
+        panelBox.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f).apply { height = 0 })
 
-        // ⭐ حالت شب/روز
+        // حالت شب/روز
         content.addView(sectionTitle("حالت نمایش"))
         themeToggleContainer = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -89,7 +86,7 @@ class SettingsPanel(
         })
         rebuildThemeToggle()
 
-        // ⭐ تم رنگی
+        // تم رنگی
         content.addView(sectionTitle("تم رنگی"))
         accentContainer = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -99,7 +96,7 @@ class SettingsPanel(
         })
         rebuildAccentPicker()
 
-        // ⭐ سایز فونت
+        // سایز فونت
         content.addView(sectionTitle("اندازه فونت"))
         fontToggleContainer = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -110,7 +107,6 @@ class SettingsPanel(
         })
         rebuildFontToggle()
 
-        // دکمه بستن
         val closeBtn = TextView(context).apply {
             text = "بستن"
             textSize = 15f
@@ -137,10 +133,8 @@ class SettingsPanel(
         }
     }
 
-    // ⭐⭐⭐ رنگ‌ها به صورت دایره‌های رنگی
     private fun rebuildAccentPicker() {
         accentContainer?.removeAllViews()
-        val isDark = settingsManager.isDark()
         val currentKey = settingsManager.accentTheme
 
         val row1 = LinearLayout(context).apply {
@@ -155,52 +149,41 @@ class SettingsPanel(
         SettingsManager.ACCENT_OPTIONS.forEachIndexed { index, opt ->
             val circle = makeColorCircle(opt, opt.key == currentKey)
             val lp = LinearLayout.LayoutParams(dp(48), dp(48)).apply {
-                marginStart = dp(6)
-                marginEnd = dp(6)
-                topMargin = dp(6)
-                bottomMargin = dp(6)
+                marginStart = dp(6); marginEnd = dp(6)
+                topMargin = dp(6); bottomMargin = dp(6)
             }
             if (index < 4) row1.addView(circle, lp) else row2.addView(circle, lp)
         }
 
         accentContainer?.addView(row1)
-        accentContainer?.addView(row2, LinearLayout.LayoutParams(-1, -2).apply {
-            topMargin = dp(4)
-        })
+        accentContainer?.addView(row2, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
     }
 
     private fun makeColorCircle(opt: AccentOption, isActive: Boolean): View {
-        val ctx = context
         val colorHex = if (settingsManager.isDark()) opt.darkHex else opt.lightHex
         val color = Color.parseColor(colorHex)
 
-        return FrameLayout(ctx).apply {
-            val ring = GradientDrawable().apply {
+        return FrameLayout(context).apply {
+            background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.TRANSPARENT)
                 setStroke(dp(if (isActive) 3 else 0), color)
             }
-            background = ring
-
-            addView(View(ctx).apply {
+            addView(View(context).apply {
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
                     setColor(color)
                 }
-            }, FrameLayout.LayoutParams(dp(38), dp(38)).apply {
-                gravity = Gravity.CENTER
-            })
+            }, FrameLayout.LayoutParams(dp(38), dp(38)).apply { gravity = Gravity.CENTER })
 
             if (isActive) {
-                addView(TextView(ctx).apply {
+                addView(TextView(context).apply {
                     text = "✓"
                     textSize = 18f
                     setTextColor(Color.WHITE)
                     gravity = Gravity.CENTER
                     typeface = android.graphics.Typeface.DEFAULT_BOLD
-                }, FrameLayout.LayoutParams(dp(38), dp(38)).apply {
-                    gravity = Gravity.CENTER
-                })
+                }, FrameLayout.LayoutParams(dp(38), dp(38)).apply { gravity = Gravity.CENTER })
             }
 
             setOnClickListener {
@@ -219,23 +202,15 @@ class SettingsPanel(
         themeToggleContainer?.addView(makeToggleBtn("روشن", current == "light") {
             settingsManager.theme = "light"
             onThemeChanged()
-            rebuildThemeToggle()
-            rebuildAccentPicker()
-            rebuildFontToggle()
-            refreshColors()
+            rebuildThemeToggle(); rebuildAccentPicker(); rebuildFontToggle(); refreshColors()
         })
-
         themeToggleContainer?.addView(View(context).apply {
             layoutParams = LinearLayout.LayoutParams(dp(16), 1)
         })
-
         themeToggleContainer?.addView(makeToggleBtn("تاریک", current == "dark") {
             settingsManager.theme = "dark"
             onThemeChanged()
-            rebuildThemeToggle()
-            rebuildAccentPicker()
-            rebuildFontToggle()
-            refreshColors()
+            rebuildThemeToggle(); rebuildAccentPicker(); rebuildFontToggle(); refreshColors()
         })
     }
 
@@ -244,29 +219,19 @@ class SettingsPanel(
         val current = settingsManager.fontSize
 
         fontToggleContainer?.addView(makeToggleBtn("کوچک", current == "small") {
-            settingsManager.fontSize = "small"
-            onFontChanged()
-            rebuildFontToggle()
+            settingsManager.fontSize = "small"; onFontChanged(); rebuildFontToggle()
         })
-
         fontToggleContainer?.addView(View(context).apply {
             layoutParams = LinearLayout.LayoutParams(dp(10), 1)
         })
-
         fontToggleContainer?.addView(makeToggleBtn("متوسط", current == "medium") {
-            settingsManager.fontSize = "medium"
-            onFontChanged()
-            rebuildFontToggle()
+            settingsManager.fontSize = "medium"; onFontChanged(); rebuildFontToggle()
         })
-
         fontToggleContainer?.addView(View(context).apply {
             layoutParams = LinearLayout.LayoutParams(dp(10), 1)
         })
-
         fontToggleContainer?.addView(makeToggleBtn("بزرگ", current == "large") {
-            settingsManager.fontSize = "large"
-            onFontChanged()
-            rebuildFontToggle()
+            settingsManager.fontSize = "large"; onFontChanged(); rebuildFontToggle()
         })
     }
 
@@ -295,31 +260,22 @@ class SettingsPanel(
 
     private fun refreshColors() {
         val isDark = settingsManager.isDark()
-        val accent = settingsManager.getAccent()
         val bg = if (isDark) Color.parseColor("#1A1A1A") else Color.WHITE
         val titleColor = if (isDark) Color.WHITE else Color.parseColor("#222222")
         val sectionColor = if (isDark) Color.parseColor("#AAAAAA") else Color.parseColor("#666666")
 
         panelBox.setBackgroundColor(bg)
 
-        // متن‌ها
-        (0 until panelBox.childCount).forEach { i ->
-            val child = panelBox.getChildAt(i)
-            if (child is TextView && child.text == "تنظیمات") {
-                child.setTextColor(titleColor)
-            }
-        }
-
-        // Section titles + button "بستن"
         fun updateAll(parent: ViewGroup) {
             for (i in 0 until parent.childCount) {
                 val c = parent.getChildAt(i)
                 if (c is TextView) {
                     when (c.text?.toString()) {
                         "حالت نمایش", "اندازه فونت", "تم رنگی" -> c.setTextColor(sectionColor)
+                        "تنظیمات" -> c.setTextColor(titleColor)
                         "بستن" -> {
                             c.background = GradientDrawable().apply {
-                                setColor(accent)
+                                setColor(settingsManager.getAccent())
                                 cornerRadius = dp(50).toFloat()
                             }
                         }
