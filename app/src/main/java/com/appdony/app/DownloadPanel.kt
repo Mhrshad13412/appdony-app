@@ -3,6 +3,7 @@ package com.appdony.app
 import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
@@ -11,6 +12,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.LruCache
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -19,6 +21,7 @@ import android.widget.*
 import androidx.core.content.FileProvider
 import java.io.File
 import java.net.URL
+import java.util.concurrent.ConcurrentHashMap
 
 class DownloadPanel(
     private val context: Context,
@@ -28,6 +31,12 @@ class DownloadPanel(
     private val onBadgeChange: (Int) -> Unit
 ) {
 
+    companion object {
+        // ⭐ کش سراسری تصاویر — بین همه‌ی رفرش‌ها باقی می‌مونه
+        private val imageCache = LruCache<String, Bitmap>(30)
+        private val downloading = ConcurrentHashMap<String, Boolean>()
+    }
+
     val view = FrameLayout(context).apply {
         setBackgroundColor(Color.parseColor("#CC000000"))
         visibility = View.GONE
@@ -36,9 +45,13 @@ class DownloadPanel(
     private val panelBox: LinearLayout
     private val list: LinearLayout
     private val handler = Handler(Looper.getMainLooper())
+
+    // ⭐ فقط status text‌ها رو آپدیت می‌کنیم، نه کل UI رو
+    private val statusViews = HashMap<Long, TextView>()
+
     private val refreshRunnable = object : Runnable {
         override fun run() {
-            refresh()
+            softRefresh()
             handler.postDelayed(this, 1000)
         }
     }
@@ -106,7 +119,7 @@ class DownloadPanel(
 
     fun open() {
         isOpen = true
-        refresh()
+        fullRefresh()
         view.visibility = View.VISIBLE
         view.alpha = 0f
         view.animate().alpha(1f).setDuration(200).start()
@@ -131,8 +144,10 @@ class DownloadPanel(
         handler.removeCallbacks(refreshRunnable)
     }
 
-    fun refresh() {
+    // ⭐ رفرش کامل — فقط وقتی تعداد یا وضعیت کلی عوض بشه
+    fun fullRefresh() {
         list.removeAllViews()
+        statusViews.clear()
         val items = helper.getAll()
 
         if (items.isEmpty()) {
@@ -147,6 +162,39 @@ class DownloadPanel(
         }
 
         items.forEach { list.addView(createItem(it)) }
+    }
+
+    // ⭐ رفرش سبک — فقط وضعیت متن‌ها رو آپدیت میکنه
+    private fun softRefresh() {
+        val items = helper.getAll()
+
+        // اگه تعداد عوض شده، رفرش کامل
+        if (items.size != statusViews.size) {
+            fullRefresh()
+            return
+        }
+
+        // فقط آپدیت متن وضعیت
+        items.forEach { item ->
+            statusViews[item.id]?.text = getStatusText(item)
+        }
+    }
+
+    // برای سازگاری با کد قبلی
+    fun refresh() = fullRefresh()
+
+    private fun getStatusText(item: DownloadItem): String {
+        return when {
+            item.isCancelled -> "لغو شده — برای شروع مجدد بزن"
+            item.status == DownloadManager.STATUS_RUNNING -> {
+                val pct = if (item.total > 0) (item.downloaded * 100 / item.total) else 0
+                "در حال دانلود  $pct%   (${helper.formatSize(item.downloaded)} / ${helper.formatSize(item.total)})"
+            }
+            item.status == DownloadManager.STATUS_SUCCESSFUL -> "کامل شد  ${helper.formatSize(item.total)}"
+            item.status == DownloadManager.STATUS_FAILED -> "خطا در دانلود"
+            item.status == DownloadManager.STATUS_PAUSED -> "متوقف"
+            else -> "در انتظار"
+        }
     }
 
     private fun createItem(item: DownloadItem): View {
@@ -183,7 +231,7 @@ class DownloadPanel(
         })
 
         val iconUrl = item.savedIconUrl?.takeIf { it.isNotEmpty() } ?: helper.getIcon(item.id)
-        iconUrl?.let { loadImageAsync(it, iconView) }
+        iconUrl?.let { loadImageCached(it, iconView) }
 
         box.addView(TextView(context).apply {
             text = item.title
@@ -196,25 +244,17 @@ class DownloadPanel(
             setPadding(0, 14, 0, 0)
         }, LinearLayout.LayoutParams(-1, -2))
 
-        val statusText = when {
-            item.isCancelled -> "لغو شده — برای شروع مجدد بزن"
-            item.status == DownloadManager.STATUS_RUNNING -> {
-                val pct = if (item.total > 0) (item.downloaded * 100 / item.total) else 0
-                "در حال دانلود  $pct%   (${helper.formatSize(item.downloaded)} / ${helper.formatSize(item.total)})"
-            }
-            item.status == DownloadManager.STATUS_SUCCESSFUL -> "کامل شد  ${helper.formatSize(item.total)}"
-            item.status == DownloadManager.STATUS_FAILED -> "خطا در دانلود"
-            item.status == DownloadManager.STATUS_PAUSED -> "متوقف"
-            else -> "در انتظار"
-        }
-
-        box.addView(TextView(context).apply {
-            text = statusText
+        val statusTv = TextView(context).apply {
+            text = getStatusText(item)
             textSize = 13f
             setPadding(0, 10, 0, 16)
             setTextColor(accent)
             gravity = Gravity.CENTER
-        }, LinearLayout.LayoutParams(-1, -2))
+        }
+        box.addView(statusTv, LinearLayout.LayoutParams(-1, -2))
+
+        // ⭐ ذخیره‌ی مرجع برای soft refresh
+        statusViews[item.id] = statusTv
 
         val btnRow = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -222,13 +262,12 @@ class DownloadPanel(
         }
 
         when {
-            // لغو شده → شروع مجدد + حذف کامل
             item.isCancelled -> {
                 btnRow.addView(makeBtn("شروع مجدد", accent) {
                     val newId = helper.restartCancelled(item.id)
                     if (newId > 0) {
                         onBadgeChange(helper.getActiveCount())
-                        refresh()
+                        fullRefresh()
                         Toast.makeText(context, "شروع مجدد شد", Toast.LENGTH_SHORT).show()
                     } else {
                         Toast.makeText(context, "خطا در شروع مجدد", Toast.LENGTH_SHORT).show()
@@ -240,10 +279,9 @@ class DownloadPanel(
                 btnRow.addView(makeBtn("حذف", Color.parseColor("#E53935")) {
                     helper.removePermanently(item.id)
                     onBadgeChange(helper.getActiveCount())
-                    refresh()
+                    fullRefresh()
                 })
             }
-            // کامل شده → نصب + حذف
             item.status == DownloadManager.STATUS_SUCCESSFUL && item.localUri != null -> {
                 btnRow.addView(makeBtn("نصب", accent) { installApk(item.localUri) })
                 btnRow.addView(View(context).apply {
@@ -252,24 +290,22 @@ class DownloadPanel(
                 btnRow.addView(makeBtn("حذف", Color.parseColor("#E53935")) {
                     helper.cancel(item.id, item.title, helper.getIcon(item.id))
                     onBadgeChange(helper.getActiveCount())
-                    refresh()
+                    fullRefresh()
                 })
             }
-            // در حال دانلود → لغو
             item.status == DownloadManager.STATUS_RUNNING || item.status == DownloadManager.STATUS_PENDING -> {
                 btnRow.addView(makeBtn("لغو", Color.parseColor("#FF9800")) {
                     helper.cancel(item.id, item.title, helper.getIcon(item.id))
                     onBadgeChange(helper.getActiveCount())
-                    refresh()
+                    fullRefresh()
                     Toast.makeText(context, "لغو شد — می‌تونی بعداً دوباره شروع کنی", Toast.LENGTH_SHORT).show()
                 })
             }
-            // بقیه → حذف
             else -> {
                 btnRow.addView(makeBtn("حذف", Color.parseColor("#E53935")) {
                     helper.removePermanently(item.id)
                     onBadgeChange(helper.getActiveCount())
-                    refresh()
+                    fullRefresh()
                 })
             }
         }
@@ -293,18 +329,37 @@ class DownloadPanel(
         }
     }
 
-    private fun loadImageAsync(url: String, imageView: ImageView) {
+    // ⭐⭐⭐ لود تصویر با کش — آیکون قطع و وصل نمیشه
+    private fun loadImageCached(url: String, imageView: ImageView) {
+        // توی کش هست؟ فوری نشون بده
+        val cached = imageCache.get(url)
+        if (cached != null) {
+            imageView.setImageBitmap(cached)
+            return
+        }
+
+        // داره دانلود میشه؟ صبر کن
+        if (downloading[url] == true) return
+        downloading[url] = true
+
         Thread {
             try {
                 val stream = URL(url).openStream()
                 val bmp = BitmapFactory.decodeStream(stream)
                 stream.close()
                 if (bmp != null) {
+                    imageCache.put(url, bmp)
                     (context as? android.app.Activity)?.runOnUiThread {
-                        imageView.setImageBitmap(bmp)
+                        // ⭐ چک کن هنوز توی ویو هست
+                        if (imageView.parent != null) {
+                            imageView.setImageBitmap(bmp)
+                        }
                     }
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            } finally {
+                downloading.remove(url)
+            }
         }.start()
     }
 
