@@ -1,4 +1,3 @@
-/* ⭐ استفاده از متغیر رنگ تم — توسط script.js تنظیم میشه */
 :root {
     --appdony-accent: #0D7377;
     --appdony-accent-10: rgba(13, 115, 119, 0.10);
@@ -11,7 +10,7 @@
     -webkit-touch-callout: none !important;
 }
 
-/* ===== دکمه‌های اصلی سایت ===== */
+/* ===== دکمه‌های اصلی ===== */
 button:not(.bottom-nav-item):not(.device-chip):not(.cat-link),
 input[type="submit"], input[type="button"],
 .elementor-button, a.btn-install,
@@ -41,7 +40,6 @@ input[type="submit"]:active, .elementor-button:active, a.btn-install:active {
     background-color: transparent !important;
 }
 
-/* ⭐ تب فعال نوار پایین — با رنگ تم */
 .bottom-nav .active,
 .bottom-nav-item.active,
 .bottom-nav a.active,
@@ -56,24 +54,11 @@ input[type="submit"]:active, .elementor-button:active, a.btn-install:active {
 }
 
 @keyframes appdonyPillIn {
-    0% {
-        background-color: transparent !important;
-        transform: scale(0.85);
-        opacity: 0.4;
-    }
-    60% {
-        background-color: var(--appdony-accent-30) !important;
-        transform: scale(1.03);
-        opacity: 1;
-    }
-    100% {
-        background-color: var(--appdony-accent-20) !important;
-        transform: scale(1);
-        opacity: 1;
-    }
+    0% { background-color: transparent !important; transform: scale(0.85); opacity: 0.4; }
+    60% { background-color: var(--appdony-accent-30) !important; transform: scale(1.03); opacity: 1; }
+    100% { background-color: var(--appdony-accent-20) !important; transform: scale(1); opacity: 1; }
 }
 
-/* ⭐ آیکون‌های تب فعال — با رنگ تم */
 .bottom-nav .active i,
 .bottom-nav .active svg,
 .bottom-nav .active span,
@@ -95,7 +80,110 @@ input[type="submit"]:active, .elementor-button:active, a.btn-install:active {
     border-bottom-color: var(--appdony-accent) !important;
 }
 
-/* ===== دکمه‌های اصلی سایت — با رنگ تم ===== */
+/* ⭐⭐⭐ دکمه‌های دستگاه (تلفن / رایانه لوحی / تلویزیون) ⭐⭐⭐ */
+.device-bar {
+    -webkit-tap-highlight-color: transparent !important;
+    outline: none !important;
+}
+
+.device-chip {
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+    -webkit-tap-highlight-color: transparent !important;
+    border-radius: 50px !important;
+    border: 2px solid transparent !important;
+}
+
+.device-chip:active {
+    transform: scale(0.95) !important;
+}
+
+/* دستگاه فعال → رنگ تم کاربر */
+.device-chip.active,
+.device-chip[aria-current],
+.device-chip[aria-selected="true"],
+.device-bar .active,
+.device-bar .chip.active,
+.device-bar li.active .device-chip {
+    background-color: var(--appdony-accent-20) !important;
+    border-color: var(--appdony-accent) !important;
+    color: var(--appdony-accent) !important;
+    border-radius: 50px !important;
+}
+
+.device-chip.active svg,
+.device-chip.active i,
+.device-chip.active span,
+.device-bar .active svg,
+.device-bar .active i,
+.device-bar .active span {
+    color: var(--appdony-accent) !important;
+    fill: var(--appdony-accent) !important;
+}
+
+/* ⭐⭐⭐ تب‌های مرتب‌سازی (بیشترین نصب / بیشترین امتیاز) ⭐⭐⭐ */
+.sort-tabs,
+.woo-products-filter,
+.product-filter,
+.tabs-filter,
+[class*="sort-tab"],
+[class*="filter-tab"] {
+    -webkit-tap-highlight-color: transparent !important;
+    outline: none !important;
+}
+
+.sort-tab,
+.filter-tab,
+.woo-products-filter li,
+.tabs-filter li,
+[class*="sort-tab"] {
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+    border-radius: 50px !important;
+    -webkit-tap-highlight-color: transparent !important;
+    border: 2px solid transparent !important;
+    padding: 6px 18px !important;
+}
+
+.sort-tab:active,
+.filter-tab:active {
+    transform: scale(0.95) !important;
+}
+
+/* تب مرتب‌سازی فعال → رنگ تم کاربر */
+.sort-tab.active,
+.filter-tab.active,
+.woo-products-filter li.active,
+.tabs-filter li.active,
+[class*="sort-tab"].active,
+[class*="filter-tab"].active {
+    background-color: var(--appdony-accent-20) !important;
+    color: var(--appdony-accent) !important;
+    border-color: var(--appdony-accent) !important;
+    border-radius: 50px !important;
+}
+
+/* اگه دکمه فعال داخل لینک باشه */
+.sort-tab.active a,
+.filter-tab.active a,
+.woo-products-filter li.active a {
+    color: var(--appdony-accent) !important;
+}
+
+/* ⭐⭐⭐ تب‌های محصولات (دسته‌بندی بازی/برنامه/وبلاگ) ⭐⭐⭐ */
+.cat-tabs,
+.category-tabs,
+.products-tabs {
+    -webkit-tap-highlight-color: transparent !important;
+}
+
+.cat-tabs a.active,
+.category-tabs a.active,
+.products-tabs a.active,
+[class*="cat-tab"].active {
+    color: var(--appdony-accent) !important;
+    border-bottom-color: var(--appdony-accent) !important;
+}
+
+/* ===== دکمه‌های اصلی سایت ===== */
 .btn-primary,
 .btn-install,
 a.btn-install,
