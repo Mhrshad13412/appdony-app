@@ -64,7 +64,7 @@
         }, 90);
     }, { passive: true });
 
-    // ⭐⭐⭐ اعمال رنگ تم روی کل سایت
+    // ⭐ اعمال رنگ تم روی کل سایت
     window._appdonySetAccent = function(hex) {
         window._appdonyAccent = hex;
 
@@ -72,7 +72,6 @@
         if (old) old.remove();
 
         var css = `
-            /* ==== متغیرهای رنگ تم ==== */
             :root {
                 --appdony-accent: ${hex};
                 --appdony-accent-10: ${hex}1A;
@@ -80,7 +79,6 @@
                 --appdony-accent-30: ${hex}4D;
             }
 
-            /* ==== نوار پایین: تب فعال ==== */
             .bottom-nav .active,
             .bottom-nav-item.active,
             .bottom-nav a.active,
@@ -100,58 +98,52 @@
                 fill: var(--appdony-accent) !important;
             }
 
-            /* ==== نوار دسته‌بندی بالا: تب فعال ==== */
             .cat-link.active,
             .cat-link[aria-current] {
                 color: var(--appdony-accent) !important;
                 border-bottom-color: var(--appdony-accent) !important;
             }
 
-            /* ==== دکمه‌های اصلی سایت ==== */
+            .device-chip.active,
+            .device-chip[aria-current],
+            .device-bar .active {
+                background-color: var(--appdony-accent-20) !important;
+                border-color: var(--appdony-accent) !important;
+                color: var(--appdony-accent) !important;
+            }
+            .device-chip.active svg,
+            .device-chip.active i,
+            .device-chip.active span {
+                color: var(--appdony-accent) !important;
+                fill: var(--appdony-accent) !important;
+            }
+
+            .sort-tab.active,
+            .filter-tab.active,
+            .woo-products-filter li.active,
+            [class*="sort-tab"].active,
+            [class*="filter-tab"].active {
+                background-color: var(--appdony-accent-20) !important;
+                color: var(--appdony-accent) !important;
+                border-color: var(--appdony-accent) !important;
+            }
+
             .btn-primary,
             .btn-install,
             [class*="btn-download"],
             [class*="download-btn"],
-            button[class*="download"],
             input[type="submit"] {
                 background-color: var(--appdony-accent) !important;
                 border-color: var(--appdony-accent) !important;
             }
 
-            /* ==== دکمه‌های ثانویه (با حاشیه) ==== */
-            .btn-outline,
-            [class*="btn-outline"],
-            button[class*="outline"] {
-                border-color: var(--appdony-accent) !important;
-                color: var(--appdony-accent) !important;
-            }
-            .btn-outline:active,
-            [class*="btn-outline"]:active {
-                background-color: var(--appdony-accent-10) !important;
-            }
-
-            /* ==== لینک‌ها و متن‌های تیتر ==== */
             a { color: var(--appdony-accent) !important; }
-            h1 a, h2 a, h3 a { color: var(--appdony-accent) !important; }
 
-            /* ==== بج‌ها و برچسب‌ها ==== */
-            .badge, .tag, [class*="badge"], [class*="tag"] {
-                background-color: var(--appdony-accent-10) !important;
-                color: var(--appdony-accent) !important;
-            }
-
-            /* ==== نوار پیشرفت ==== */
-            progress, .progress-bar {
-                accent-color: var(--appdony-accent) !important;
-            }
-
-            /* ==== فوکوس اینپوت‌ها ==== */
             input:focus, textarea:focus, select:focus {
                 border-color: var(--appdony-accent) !important;
                 box-shadow: 0 0 0 3px var(--appdony-accent-20) !important;
             }
 
-            /* ==== اسکرول‌بار ==== */
             ::-webkit-scrollbar-thumb {
                 background: var(--appdony-accent-30) !important;
             }
@@ -162,4 +154,39 @@
         s.appendChild(document.createTextNode(css));
         document.head.appendChild(s);
     };
+
+    // ⭐ خوندن رنگ ذخیره‌شده از localStorage
+    function applySavedAccent() {
+        try {
+            var saved = localStorage.getItem('_appdony_accent');
+            if (saved && window._appdonySetAccent) {
+                window._appdonySetAccent(saved);
+            }
+        } catch(e) {}
+    }
+
+    applySavedAccent();
+
+    // ⭐ observer — اگه استایل حذف شد
+    if (!window._appdonyAccentObserver) {
+        window._appdonyAccentObserver = new MutationObserver(function() {
+            if (!document.getElementById('appdony-accent-style') &&
+                !document.getElementById('appdony-accent-direct')) {
+                applySavedAccent();
+            }
+        });
+        window._appdonyAccentObserver.observe(document.documentElement, {
+            childList: true, subtree: true
+        });
+    }
+
+    // ⭐ هر 2 ثانیه چک کن
+    if (!window._appdonyAccentInterval) {
+        window._appdonyAccentInterval = setInterval(function() {
+            if (!document.getElementById('appdony-accent-style') &&
+                !document.getElementById('appdony-accent-direct')) {
+                applySavedAccent();
+            }
+        }, 2000);
+    }
 })();
