@@ -12,6 +12,8 @@ import android.widget.TextView
 
 class BallMenu(private val context: Context, private val accentProvider: () -> Int) {
 
+    private val MENU_WIDTH_DP = 160
+
     val view: FrameLayout = FrameLayout(context).apply {
         visibility = View.GONE
         setOnClickListener { hide() }
@@ -30,8 +32,9 @@ class BallMenu(private val context: Context, private val accentProvider: () -> I
     private fun dp(v: Int) = (v * context.resources.displayMetrics.density).toInt()
 
     init {
+        // ⭐ عرض ثابت — دیگه کشیده نمیشه
         view.addView(menuBox, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
+            dp(MENU_WIDTH_DP),
             ViewGroup.LayoutParams.WRAP_CONTENT
         ))
     }
@@ -40,7 +43,6 @@ class BallMenu(private val context: Context, private val accentProvider: () -> I
     fun setOnSettings(cb: () -> Unit) { onSettings = cb }
 
     fun show(anchorX: Float, anchorY: Float, ballSize: Int) {
-        // ⭐ همیشه تیره، مینیمال — مثل تصویر مرجع
         val bg = Color.parseColor("#1A1A1A")
 
         menuBox.setPadding(dp(4), dp(4), dp(4), dp(4))
@@ -108,20 +110,28 @@ class BallMenu(private val context: Context, private val accentProvider: () -> I
         isOpen = false
     }
 
-    // ⭐ فقط متن، وسط‌چین، بدون آیکون
+    // ⭐ متن وسط‌چین، بدون آیکون، پر عرض
     private fun makeItem(label: String, cb: () -> Unit): TextView = TextView(context).apply {
         text = label
         textSize = 15f
         setTextColor(Color.WHITE)
         typeface = android.graphics.Typeface.DEFAULT_BOLD
         gravity = Gravity.CENTER
-        setPadding(dp(38), dp(14), dp(38), dp(14))
+        setPadding(dp(16), dp(14), dp(16), dp(14))
+        layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
         setOnClickListener { cb() }
     }
 
+    // ⭐ جداکننده — با پدینگ افقی، عرض کم
     private fun divider() = View(context).apply {
-        layoutParams = LinearLayout.LayoutParams(-1, dp(1)).apply {
-            marginStart = dp(16); marginEnd = dp(16)
+        layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(1)
+        ).apply {
+            marginStart = dp(12)
+            marginEnd = dp(12)
         }
         setBackgroundColor(Color.parseColor("#2A2A2A"))
     }
