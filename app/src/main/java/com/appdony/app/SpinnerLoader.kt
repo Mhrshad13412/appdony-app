@@ -11,7 +11,11 @@ import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.LinearInterpolator
 
-class SpinnerLoader(context: Context, private val isDark: Boolean, private val strokeW: Float) : View(context) {
+class SpinnerLoader(
+    context: Context,
+    private val accentProvider: () -> Int,
+    private val strokeW: Float
+) : View(context) {
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -19,9 +23,6 @@ class SpinnerLoader(context: Context, private val isDark: Boolean, private val s
         strokeWidth = strokeW
     }
     private val rect = RectF()
-    private val colorMain = if (isDark) Color.parseColor("#4DD0C7") else Color.parseColor("#0D7377")
-    private val colorLight = if (isDark) Color.parseColor("#7FE5DD") else Color.parseColor("#2AA5A0")
-    private val colorTransparent = if (isDark) Color.parseColor("#204DD0C7") else Color.parseColor("#200D7377")
     private var rotation = 0f
     private var sweep = 90f
 
@@ -45,13 +46,28 @@ class SpinnerLoader(context: Context, private val isDark: Boolean, private val s
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+
+        val accent = accentProvider()
+        val r = Color.red(accent)
+        val g = Color.green(accent)
+        val b = Color.blue(accent)
+        val colorMain = Color.rgb(r, g, b)
+        val colorLight = Color.rgb(
+            (r + (255 - r) * 0.4).toInt(),
+            (g + (255 - g) * 0.4).toInt(),
+            (b + (255 - b) * 0.4).toInt()
+        )
+        val colorTransparent = Color.argb(32, r, g, b)
+
         val cx = width / 2f
         val cy = height / 2f
-        val r = (minOf(width, height) - strokeW) / 2f
-        rect.set(cx - r, cy - r, cx + r, cy + r)
+        val radius = (minOf(width, height) - strokeW) / 2f
+        rect.set(cx - radius, cy - radius, cx + radius, cy + radius)
+
         paint.shader = SweepGradient(cx, cy,
             intArrayOf(colorMain, colorLight, colorTransparent, colorMain),
             floatArrayOf(0f, 0.35f, 0.75f, 1f))
+
         canvas.save()
         canvas.rotate(rotation, cx, cy)
         canvas.drawArc(rect, 0f, sweep, false, paint)
