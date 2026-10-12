@@ -286,7 +286,7 @@ class MainActivity : AppCompatActivity() {
         ball.updateColor()
     }
 
-    // ⭐ اعمال رنگ تم — مقاوم به تغییر صفحه
+    // ⭐ اعمال رنگ تم — specificity بالا
     private fun applyAccent() {
         ball.updateColor()
         val accentHex = String.format("#%06X", 0xFFFFFF and settingsManager.getAccent())
@@ -299,6 +299,12 @@ class MainActivity : AppCompatActivity() {
                     root.style.setProperty('--appdony-accent-10', '${accentHex}1A');
                     root.style.setProperty('--appdony-accent-20', '${accentHex}33');
                     root.style.setProperty('--appdony-accent-30', '${accentHex}4D');
+                    root.style.setProperty('--accent', '$accentHex');
+                    root.style.setProperty('--primary', '$accentHex');
+                    root.style.setProperty('--brand', '$accentHex');
+                    root.style.setProperty('--main-color', '$accentHex');
+                    root.style.setProperty('--theme-color', '$accentHex');
+                    root.style.setProperty('--link-color', '$accentHex');
 
                     try { localStorage.setItem('_appdony_accent', '$accentHex'); } catch(e) {}
 
@@ -311,12 +317,16 @@ class MainActivity : AppCompatActivity() {
                     var s = document.createElement('style');
                     s.id = 'appdony-accent-direct';
                     s.appendChild(document.createTextNode(
-                        ':root{--appdony-accent:$accentHex!important;--appdony-accent-10:${accentHex}1A!important;--appdony-accent-20:${accentHex}33!important;--appdony-accent-30:${accentHex}4D!important;}' +
-                        '.device-chip.active,.device-chip[aria-current],.device-bar .active{background-color:${accentHex}33!important;border-color:$accentHex!important;color:$accentHex!important;}' +
-                        '.sort-tab.active,.filter-tab.active,.woo-products-filter li.active,[class*="sort-tab"].active{background-color:${accentHex}33!important;color:$accentHex!important;border-color:$accentHex!important;}' +
-                        '.cat-link.active,.cat-link[aria-current]{color:$accentHex!important;border-bottom-color:$accentHex!important;}' +
-                        '.bottom-nav .active,.bottom-nav-item.active{background-color:${accentHex}33!important;color:$accentHex!important;}' +
-                        '.bottom-nav .active i,.bottom-nav .active svg,.bottom-nav .active span,.bottom-nav-item.active i,.bottom-nav-item.active span{color:$accentHex!important;fill:$accentHex!important;}'
+                        ':root,html,body{--appdony-accent:$accentHex!important;--appdony-accent-10:${accentHex}1A!important;--appdony-accent-20:${accentHex}33!important;--appdony-accent-30:${accentHex}4D!important;--accent:$accentHex!important;--primary:$accentHex!important;--brand:$accentHex!important;}' +
+                        'html body .device-bar .device-chip.active,html body .device-chip.active{background-color:${accentHex}33!important;border-color:$accentHex!important;color:$accentHex!important;}' +
+                        'html body .device-chip.active svg{color:$accentHex!important;fill:$accentHex!important;}' +
+                        'html body .charts-tabs .charts-tab.active,html body button.charts-tab.active,html body button[data-tab].active{background-color:${accentHex}33!important;color:$accentHex!important;border-color:$accentHex!important;}' +
+                        'html body .charts-list .chart-row .chart-info .meta-line,html body .chart-row .chart-info .meta-line,html body .chart-info .meta-line,html body .chart-row .meta-line{color:$accentHex!important;}' +
+                        'html body .chart-info .meta-line .rating,html body .chart-row .meta-line .rating{color:#888!important;}' +
+                        'html body .chart-info .meta-line .rating svg,html body .chart-row .meta-line .rating svg{fill:#888!important;}' +
+                        'html body .cat-link.active,html body .cat-link[aria-current]{color:$accentHex!important;border-bottom-color:$accentHex!important;}' +
+                        'html body .bottom-nav .active,html body .bottom-nav-item.active{background-color:${accentHex}33!important;color:$accentHex!important;}' +
+                        'html body .bottom-nav .active svg,html body .bottom-nav .active i,html body .bottom-nav .active span,html body .bottom-nav-item.active svg,html body .bottom-nav-item.active i,html body .bottom-nav-item.active span{color:$accentHex!important;fill:$accentHex!important;}'
                     ));
                     (document.head || document.documentElement).appendChild(s);
                 } catch(e) {}
@@ -334,6 +344,9 @@ class MainActivity : AppCompatActivity() {
                         root.style.setProperty('--appdony-accent-10', '${accentHex}1A');
                         root.style.setProperty('--appdony-accent-20', '${accentHex}33');
                         root.style.setProperty('--appdony-accent-30', '${accentHex}4D');
+                        root.style.setProperty('--accent', '$accentHex');
+                        root.style.setProperty('--primary', '$accentHex');
+                        root.style.setProperty('--brand', '$accentHex');
                         if (typeof window._appdonySetAccent === 'function') {
                             window._appdonySetAccent('$accentHex');
                         }
@@ -344,7 +357,6 @@ class MainActivity : AppCompatActivity() {
         }, 300)
     }
 
-    // ⭐ حالت شب/روز
     private fun applyThemeCss() {
         val accentHex = String.format("#%06X", 0xFFFFFF and settingsManager.getAccent())
         val darkCss = if (settingsManager.isDark()) {
