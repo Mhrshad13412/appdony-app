@@ -96,15 +96,15 @@ class MainActivity : AppCompatActivity() {
 
         root = FrameLayout(this)
 
-        // SPLASH
+        // ============ SPLASH (لودینگ با رنگ تم) ============
         splashView = FrameLayout(this).apply { setBackgroundColor(splashBg) }
-        splashView.addView(SpinnerLoader(this, isDark, 30f),
+        splashView.addView(SpinnerLoader(this, { currentAccent() }, 30f),
             FrameLayout.LayoutParams(280, 280).apply { gravity = Gravity.CENTER })
 
-        // MINI LOADER
-        miniLoader = SpinnerLoader(this, isDark, 18f).apply { visibility = View.GONE }
+        // ============ MINI LOADER (با رنگ تم) ============
+        miniLoader = SpinnerLoader(this, { currentAccent() }, 18f).apply { visibility = View.GONE }
 
-        // PANELS
+        // ============ PANELS ============
         panel = DownloadPanel(this, { currentDark() }, { currentAccent() }, helper) { count ->
             ball.updateBadge(count)
         }
@@ -116,7 +116,7 @@ class MainActivity : AppCompatActivity() {
             onAccentChanged = { applyAccent() }
         )
 
-        // BALL
+        // ============ BALL ============
         ball = FloatingBall(this, { currentAccent() }) {
             if (ballMenu.isOpen) ballMenu.hide()
             else ballMenu.show(ball.view.x, ball.view.y, ball.size)
@@ -130,7 +130,7 @@ class MainActivity : AppCompatActivity() {
             gravity = Gravity.TOP or Gravity.START
         }
 
-        // MENU
+        // ============ MENU ============
         ballMenu = BallMenu(this, { currentAccent() }).apply {
             setOnDownloads {
                 if (panel.isOpen) panel.close() else panel.open()
@@ -140,7 +140,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // WEBVIEW
+        // ============ WEBVIEW ============
         val initialUrl = intent?.data?.toString()
             ?: "https://appdony.ir/?v=${System.currentTimeMillis() / (1000 * 60 * 60 * 24)}"
 
@@ -321,12 +321,13 @@ class MainActivity : AppCompatActivity() {
                         'html body .device-bar .device-chip.active,html body .device-chip.active{background-color:${accentHex}33!important;border-color:$accentHex!important;color:$accentHex!important;}' +
                         'html body .device-chip.active svg{color:$accentHex!important;fill:$accentHex!important;}' +
                         'html body .charts-tabs .charts-tab.active,html body button.charts-tab.active,html body button[data-tab].active{background-color:${accentHex}33!important;color:$accentHex!important;border-color:$accentHex!important;}' +
-                        'html body .charts-list .chart-row .chart-info .meta-line,html body .chart-row .chart-info .meta-line,html body .chart-info .meta-line,html body .chart-row .meta-line{color:$accentHex!important;}' +
-                        'html body .chart-info .meta-line .rating,html body .chart-row .meta-line .rating{color:#888!important;}' +
-                        'html body .chart-info .meta-line .rating svg,html body .chart-row .meta-line .rating svg{fill:#888!important;}' +
+                        'html body .charts-list .chart-row .chart-info .meta-line,html body .chart-row .chart-info .meta-line,html body .chart-info .meta-line,html body .chart-row .meta-line,html body .meta-line,html body .post-meta a,html body .entry-meta a,html body .post-cat a,html body .entry-cat a,html body .cat-label a,html body .post-categories a,html body .post-tags a,html body .blog-card .category a,html body .post-card .category a,html body a[href*="/category/"]:not(.cat-link),html body a[href*="/tag/"]:not(.cat-link){color:$accentHex!important;}' +
+                        'html body .chart-info .meta-line .rating,html body .chart-row .meta-line .rating,html body .meta-line .rating{color:#888!important;}' +
+                        'html body .chart-info .meta-line .rating svg,html body .chart-row .meta-line .rating svg,html body .meta-line .rating svg{fill:#888!important;}' +
                         'html body .cat-link.active,html body .cat-link[aria-current]{color:$accentHex!important;border-bottom-color:$accentHex!important;}' +
                         'html body .bottom-nav .active,html body .bottom-nav-item.active{background-color:${accentHex}33!important;color:$accentHex!important;}' +
-                        'html body .bottom-nav .active svg,html body .bottom-nav .active i,html body .bottom-nav .active span,html body .bottom-nav-item.active svg,html body .bottom-nav-item.active i,html body .bottom-nav-item.active span{color:$accentHex!important;fill:$accentHex!important;}'
+                        'html body .bottom-nav .active svg,html body .bottom-nav .active i,html body .bottom-nav .active span,html body .bottom-nav-item.active svg,html body .bottom-nav-item.active i,html body .bottom-nav-item.active span{color:$accentHex!important;fill:$accentHex!important;}' +
+                        'html body .card-link:active,html body .app-tile:active,html body .chart-row:active,html body .featured-card:active,html body article:active{background-color:${accentHex}33!important;}'
                     ));
                     (document.head || document.documentElement).appendChild(s);
                 } catch(e) {}
