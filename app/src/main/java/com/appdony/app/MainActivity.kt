@@ -286,17 +286,65 @@ class MainActivity : AppCompatActivity() {
         ball.updateColor()
     }
 
-    // ⭐ اعمال رنگ تم به کل سایت
+    // ⭐ اعمال رنگ تم — مقاوم به تغییر صفحه
     private fun applyAccent() {
         ball.updateColor()
         val accentHex = String.format("#%06X", 0xFFFFFF and settingsManager.getAccent())
-        webView.evaluateJavascript(
-            "if(window._appdonySetAccent) window._appdonySetAccent('$accentHex');",
-            null
-        )
+
+        val js = """
+            (function() {
+                try {
+                    var root = document.documentElement;
+                    root.style.setProperty('--appdony-accent', '$accentHex');
+                    root.style.setProperty('--appdony-accent-10', '${accentHex}1A');
+                    root.style.setProperty('--appdony-accent-20', '${accentHex}33');
+                    root.style.setProperty('--appdony-accent-30', '${accentHex}4D');
+
+                    try { localStorage.setItem('_appdony_accent', '$accentHex'); } catch(e) {}
+
+                    if (typeof window._appdonySetAccent === 'function') {
+                        window._appdonySetAccent('$accentHex');
+                    }
+
+                    var old = document.getElementById('appdony-accent-direct');
+                    if (old) old.remove();
+                    var s = document.createElement('style');
+                    s.id = 'appdony-accent-direct';
+                    s.appendChild(document.createTextNode(
+                        ':root{--appdony-accent:$accentHex!important;--appdony-accent-10:${accentHex}1A!important;--appdony-accent-20:${accentHex}33!important;--appdony-accent-30:${accentHex}4D!important;}' +
+                        '.device-chip.active,.device-chip[aria-current],.device-bar .active{background-color:${accentHex}33!important;border-color:$accentHex!important;color:$accentHex!important;}' +
+                        '.sort-tab.active,.filter-tab.active,.woo-products-filter li.active,[class*="sort-tab"].active{background-color:${accentHex}33!important;color:$accentHex!important;border-color:$accentHex!important;}' +
+                        '.cat-link.active,.cat-link[aria-current]{color:$accentHex!important;border-bottom-color:$accentHex!important;}' +
+                        '.bottom-nav .active,.bottom-nav-item.active{background-color:${accentHex}33!important;color:$accentHex!important;}' +
+                        '.bottom-nav .active i,.bottom-nav .active svg,.bottom-nav .active span,.bottom-nav-item.active i,.bottom-nav-item.active span{color:$accentHex!important;fill:$accentHex!important;}'
+                    ));
+                    (document.head || document.documentElement).appendChild(s);
+                } catch(e) {}
+            })();
+        """.trimIndent()
+
+        webView.evaluateJavascript(js, null)
+
+        handler.postDelayed({
+            val retry = """
+                (function() {
+                    try {
+                        var root = document.documentElement;
+                        root.style.setProperty('--appdony-accent', '$accentHex');
+                        root.style.setProperty('--appdony-accent-10', '${accentHex}1A');
+                        root.style.setProperty('--appdony-accent-20', '${accentHex}33');
+                        root.style.setProperty('--appdony-accent-30', '${accentHex}4D');
+                        if (typeof window._appdonySetAccent === 'function') {
+                            window._appdonySetAccent('$accentHex');
+                        }
+                    } catch(e) {}
+                })();
+            """.trimIndent()
+            webView.evaluateJavascript(retry, null)
+        }, 300)
     }
 
-    // ⭐ حالت شب/روز + رنگ تم
+    // ⭐ حالت شب/روز
     private fun applyThemeCss() {
         val accentHex = String.format("#%06X", 0xFFFFFF and settingsManager.getAccent())
         val darkCss = if (settingsManager.isDark()) {
