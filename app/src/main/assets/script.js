@@ -64,6 +64,65 @@
         }, 90);
     }, { passive: true });
 
+    // ⭐⭐⭐⭐⭐ رنگ کردن دسته‌بندی‌ها با JS مستقیم
+    function colorCategoryLinks() {
+        try {
+            var accent = window._appdonyAccent || '#0D7377';
+
+            // پیدا کردن همه لینک‌های دسته‌بندی و برچسب
+            var selectors = [
+                'a[href*="/category/"]',
+                'a[href*="/tag/"]',
+                'a[href*="/cat/"]',
+                'a[href*="/genre/"]',
+                'a[href*="/دسته/"]',
+                '.cat',
+                '.cat a',
+                '.category',
+                '.category a',
+                '.post-cat',
+                '.post-cat a',
+                '.entry-cat',
+                '.entry-cat a',
+                '.cat-links a',
+                '.cat-link:not(.category-nav .cat-link):not(.category-nav-inner .cat-link)',
+                '.post-categories a',
+                '.post-tags a',
+                '.tag-link',
+                '.category-link',
+                '[class*="cat"]:not(.cat-nav):not(.category-nav):not(.category-nav-inner):not(.cat-link.active):not(.cat-tabs)',
+                '[class*="category"]:not(.category-nav):not(.category-nav-inner)'
+            ];
+
+            var all = document.querySelectorAll(selectors.join(','));
+
+            for (var i = 0; i < all.length; i++) {
+                var el = all[i];
+
+                // ⭐ نادیده گرفتن: نوار دسته‌بندی بالا، دکمه‌های فعال، منوها
+                if (el.closest('.category-nav') ||
+                    el.closest('.category-nav-inner') ||
+                    el.closest('.bottom-nav') ||
+                    el.closest('.drawer') ||
+                    el.closest('.site-header') ||
+                    el.classList.contains('cat-link') ||
+                    el.classList.contains('cat-tabs') ||
+                    el.classList.contains('device-chip') ||
+                    el.classList.contains('charts-tab') ||
+                    el.tagName === 'BUTTON' ||
+                    el.tagName === 'INPUT') {
+                    continue;
+                }
+
+                // اگه متن داخلش خیلی کوتاهه (یعنی برچسب دسته‌بندی)
+                var txt = (el.textContent || '').trim();
+                if (txt.length > 0 && txt.length < 40) {
+                    el.style.setProperty('color', accent, 'important');
+                }
+            }
+        } catch(e) {}
+    }
+
     // ⭐ اعمال رنگ تم روی کل سایت
     window._appdonySetAccent = function(hex) {
         window._appdonyAccent = hex;
@@ -106,7 +165,7 @@
                 fill: var(--appdony-accent) !important;
             }
 
-            /* charts-tab (بیشترین نصب/امتیاز) */
+            /* charts-tab */
             html body .charts-tabs .charts-tab.active,
             html body .charts-tabs button.charts-tab.active,
             html body button.charts-tab.active,
@@ -116,7 +175,7 @@
                 border-color: var(--appdony-accent) !important;
             }
 
-            /* meta-line "gta" */
+            /* meta-line */
             html body .charts-list .chart-row .chart-info .meta-line,
             html body .chart-row .chart-info .meta-line,
             html body .chart-info .meta-line,
@@ -147,14 +206,30 @@
                 fill: var(--appdony-accent) !important;
             }
 
-            /* لینک‌ها */
-            a { color: var(--appdony-accent) !important; }
+            /* همه لینک‌های دسته‌بندی و برچسب */
+            html body a[href*="/category/"],
+            html body a[href*="/tag/"],
+            html body a[href*="/cat/"],
+            html body .post-cat, html body .post-cat a,
+            html body .entry-cat, html body .entry-cat a,
+            html body .cat, html body .cat a,
+            html body .category, html body .category a,
+            html body .cat-links a,
+            html body .post-categories a,
+            html body .post-tags a {
+                color: var(--appdony-accent) !important;
+            }
         `;
 
         var s = document.createElement('style');
         s.id = 'appdony-accent-style';
         s.appendChild(document.createTextNode(css));
         (document.head || document.documentElement).appendChild(s);
+
+        // ⭐ رنگ کردن دسته‌بندی‌ها با JS
+        colorCategoryLinks();
+        setTimeout(colorCategoryLinks, 500);
+        setTimeout(colorCategoryLinks, 1500);
     };
 
     // ⭐ خوندن رنگ ذخیره‌شده
@@ -169,24 +244,25 @@
 
     applySavedAccent();
 
-    if (!window._appdonyAccentObserver) {
-        window._appdonyAccentObserver = new MutationObserver(function() {
-            if (!document.getElementById('appdony-accent-style') &&
-                !document.getElementById('appdony-accent-direct')) {
-                applySavedAccent();
-            }
+    // ⭐ Observer برای رنگی کردن مداوم
+    if (!window._appdonyCatObserver) {
+        window._appdonyCatObserver = new MutationObserver(function() {
+            clearTimeout(window._appdonyCatTimer);
+            window._appdonyCatTimer = setTimeout(colorCategoryLinks, 300);
         });
-        window._appdonyAccentObserver.observe(document.documentElement, {
+        window._appdonyCatObserver.observe(document.documentElement, {
             childList: true, subtree: true
         });
     }
 
-    if (!window._appdonyAccentInterval) {
-        window._appdonyAccentInterval = setInterval(function() {
+    // ⭐ هر 3 ثانیه چک کن (پشتیبان)
+    if (!window._appdonyCatInterval) {
+        window._appdonyCatInterval = setInterval(function() {
+            colorCategoryLinks();
             if (!document.getElementById('appdony-accent-style') &&
                 !document.getElementById('appdony-accent-direct')) {
                 applySavedAccent();
             }
-        }, 2000);
+        }, 3000);
     }
 })();
