@@ -31,14 +31,8 @@ input[type="submit"]:active, .elementor-button:active, a.btn-install:active {
     -webkit-tap-highlight-color: transparent !important;
     outline: none !important;
 }
-
-.bottom-nav a, .bottom-nav-item {
-    background-color: transparent !important;
-}
-
-.bottom-nav a:active, .bottom-nav-item:active {
-    background-color: transparent !important;
-}
+.bottom-nav a, .bottom-nav-item { background-color: transparent !important; }
+.bottom-nav a:active, .bottom-nav-item:active { background-color: transparent !important; }
 
 .bottom-nav .active,
 .bottom-nav-item.active,
@@ -59,175 +53,191 @@ input[type="submit"]:active, .elementor-button:active, a.btn-install:active {
     100% { background-color: var(--appdony-accent-20) !important; transform: scale(1); opacity: 1; }
 }
 
-.bottom-nav .active i,
-.bottom-nav .active svg,
-.bottom-nav .active span,
-.bottom-nav-item.active i,
-.bottom-nav-item.active span {
+.bottom-nav .active i, .bottom-nav .active svg, .bottom-nav .active span,
+.bottom-nav-item.active i, .bottom-nav-item.active span {
     color: var(--appdony-accent) !important;
     fill: var(--appdony-accent) !important;
 }
 
 /* ===== نوار دسته‌بندی بالا ===== */
-.cat-link {
-    -webkit-tap-highlight-color: transparent !important;
-}
-
-.cat-link.active,
-.cat-link[aria-current],
-.cat-link[aria-current="page"] {
+.cat-link { -webkit-tap-highlight-color: transparent !important; }
+.cat-link.active, .cat-link[aria-current], .cat-link[aria-current="page"] {
     color: var(--appdony-accent) !important;
     border-bottom-color: var(--appdony-accent) !important;
 }
 
-/* ⭐⭐⭐ دکمه‌های دستگاه (تلفن / رایانه لوحی / تلویزیون) ⭐⭐⭐ */
-.device-bar {
+/* ===== دکمه‌های دستگاه — ⚠️ دست نزن ===== */
+.device-bar, .device-tabs, .platform-tabs,
+[class*="device"], [class*="platform"] {
     -webkit-tap-highlight-color: transparent !important;
     outline: none !important;
 }
-
-.device-chip {
+.device-chip, .device-tab, .platform-chip, .platform-tab,
+[class*="device-chip"], [class*="device-tab"],
+[class*="platform-chip"], [class*="platform-tab"] {
     transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
     -webkit-tap-highlight-color: transparent !important;
     border-radius: 50px !important;
     border: 2px solid transparent !important;
 }
-
-.device-chip:active {
+.device-chip:active, .device-tab:active, .platform-chip:active, .platform-tab:active {
     transform: scale(0.95) !important;
 }
-
-/* دستگاه فعال → رنگ تم کاربر */
-.device-chip.active,
-.device-chip[aria-current],
-.device-chip[aria-selected="true"],
-.device-bar .active,
-.device-bar .chip.active,
-.device-bar li.active .device-chip {
+.device-chip.active, .device-chip[aria-current], .device-chip[aria-selected="true"],
+.device-bar .active, .device-bar .chip.active, .device-bar li.active .device-chip,
+.device-tabs .active, .device-tab.active,
+.platform-tabs .active, .platform-chip.active, .platform-tab.active,
+[class*="device"] .active, [class*="device"][class*="active"],
+[class*="platform"] .active, [class*="device-chip"].active, [class*="device-tab"].active {
     background-color: var(--appdony-accent-20) !important;
     border-color: var(--appdony-accent) !important;
     color: var(--appdony-accent) !important;
     border-radius: 50px !important;
 }
-
-.device-chip.active svg,
-.device-chip.active i,
-.device-chip.active span,
-.device-bar .active svg,
-.device-bar .active i,
-.device-bar .active span {
+.device-chip.active svg, .device-chip.active i, .device-chip.active span,
+.device-bar .active svg, .device-bar .active i, .device-bar .active span,
+.device-tabs .active svg, .device-tabs .active i, .device-tabs .active span,
+[class*="device"].active svg, [class*="device"].active i, [class*="device"].active span,
+[class*="platform"].active svg, [class*="platform"].active i, [class*="platform"].active span {
     color: var(--appdony-accent) !important;
     fill: var(--appdony-accent) !important;
 }
 
-/* ⭐⭐⭐ تب‌های مرتب‌سازی (بیشترین نصب / بیشترین امتیاز) ⭐⭐⭐ */
-.sort-tabs,
-.woo-products-filter,
-.product-filter,
-.tabs-filter,
-[class*="sort-tab"],
-[class*="filter-tab"] {
+/* ==================================================
+   ⭐⭐⭐ دکمه‌های پایین (بیشترین نصب / بیشترین امتیاز) ⭐⭐⭐
+   ================================================== */
+
+/* کانتینر تب‌ها */
+.products-tabs, .product-tabs, .shop-tabs, .tabs-nav, .tabs-wrap,
+.filter-tabs, .sort-tabs, .woo-tabs, .orderby-nav,
+[class*="tabs-wrapper"], [class*="tabs-container"],
+[class*="filter-wrap"], [class*="sort-wrap"] {
     -webkit-tap-highlight-color: transparent !important;
     outline: none !important;
 }
 
-.sort-tab,
-.filter-tab,
-.woo-products-filter li,
-.tabs-filter li,
-[class*="sort-tab"] {
+/* هر دکمه‌ی تبی — عمومی */
+.products-tabs > *, .product-tabs > *, .shop-tabs > *,
+.tabs-nav > *, .tabs-wrap > *, .filter-tabs > *, .sort-tabs > *,
+.products-tabs a, .product-tabs a, .shop-tabs a,
+.tabs-nav a, .tabs-wrap a, .filter-tabs a, .sort-tabs a,
+.products-tabs button, .product-tabs button, .shop-tabs button,
+.tabs-nav button, .filter-tabs button, .sort-tabs button,
+.products-tabs li, .product-tabs li, .shop-tabs li,
+.tabs-nav li, .filter-tabs li, .sort-tabs li,
+.products-tabs .item, .shop-tabs .item,
+.tabs-nav .item, .filter-tabs .item,
+.sort-tab, .filter-tab, .tab-item, .nav-item,
+[class*="sort-tab"], [class*="filter-tab"],
+[class*="tab-btn"], [class*="tab-link"],
+[class*="products-tab"], [class*="product-tab"] {
     transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
-    border-radius: 50px !important;
     -webkit-tap-highlight-color: transparent !important;
-    border: 2px solid transparent !important;
-    padding: 6px 18px !important;
+    border-radius: 50px !important;
+    position: relative !important;
 }
 
-.sort-tab:active,
-.filter-tab:active {
-    transform: scale(0.95) !important;
-}
-
-/* تب مرتب‌سازی فعال → رنگ تم کاربر */
-.sort-tab.active,
-.filter-tab.active,
-.woo-products-filter li.active,
-.tabs-filter li.active,
-[class*="sort-tab"].active,
-[class*="filter-tab"].active {
-    background-color: var(--appdony-accent-20) !important;
+/* ⭐ دکمه‌ی فعال — متن */
+.products-tabs .active, .product-tabs .active, .shop-tabs .active,
+.tabs-nav .active, .tabs-wrap .active, .filter-tabs .active, .sort-tabs .active,
+.products-tabs a.active, .product-tabs a.active, .shop-tabs a.active,
+.tabs-nav a.active, .filter-tabs a.active, .sort-tabs a.active,
+.products-tabs li.active, .product-tabs li.active, .shop-tabs li.active,
+.tabs-nav li.active, .filter-tabs li.active, .sort-tabs li.active,
+.products-tabs .item.active, .shop-tabs .item.active,
+.tabs-nav .item.active, .filter-tabs .item.active,
+.sort-tab.active, .filter-tab.active, .tab-item.active,
+[class*="sort-tab"].active, [class*="filter-tab"].active,
+[class*="tab-btn"].active, [class*="tab-link"].active,
+[class*="products-tab"].active, [class*="product-tab"].active,
+.orderby-nav .active, .woo-tabs .active,
+[class*="filter"] .active, [class*="tab"] li.active {
     color: var(--appdony-accent) !important;
+    background-color: var(--appdony-accent-10) !important;
+}
+
+/* ⭐ دکمه‌ی فعال — خط زیر */
+.products-tabs .active::after, .product-tabs .active::after,
+.shop-tabs .active::after, .tabs-nav .active::after,
+.tabs-wrap .active::after, .filter-tabs .active::after,
+.sort-tabs .active::after, .sort-tab.active::after,
+.filter-tab.active::after, .tab-item.active::after,
+[class*="sort-tab"].active::after, [class*="filter-tab"].active::after,
+[class*="tab-btn"].active::after, [class*="tab-link"].active::after {
+    background-color: var(--appdony-accent) !important;
+    background: var(--appdony-accent) !important;
+}
+
+/* ⭐ دکمه‌ی فعال — حاشیه */
+.products-tabs .active, .product-tabs .active, .shop-tabs .active,
+.sort-tab.active, .filter-tab.active,
+[class*="sort-tab"].active, [class*="filter-tab"].active {
     border-color: var(--appdony-accent) !important;
-    border-radius: 50px !important;
 }
 
-/* اگه دکمه فعال داخل لینک باشه */
-.sort-tab.active a,
-.filter-tab.active a,
-.woo-products-filter li.active a {
+/* ⭐ لینک داخل دکمه‌ی فعال */
+.products-tabs .active a, .shop-tabs .active a,
+.tabs-nav .active a, .filter-tabs .active a,
+.sort-tabs .active a, .woo-tabs .active a,
+[class*="sort-tab"].active a, [class*="filter-tab"].active a {
     color: var(--appdony-accent) !important;
 }
 
-/* ⭐⭐⭐ تب‌های محصولات (دسته‌بندی بازی/برنامه/وبلاگ) ⭐⭐⭐ */
-.cat-tabs,
-.category-tabs,
-.products-tabs {
-    -webkit-tap-highlight-color: transparent !important;
+/* ==================================================
+   ⭐⭐⭐ متن دسته‌بندی (gta) ⭐⭐⭐
+   ================================================== */
+
+/* همه‌ی لینک‌های دسته‌بندی و برچسب */
+.post-cat, .post-cat a, .entry-cat, .entry-cat a,
+.cat-label, .cat-label a, .category-label, .category-label a,
+.post-meta a, .entry-meta a, .post-info a, .post-footer a,
+.post-tags a, .entry-tags a, .tags a,
+a[rel="category tag"], a[rel="tag"], a[rel*="category"], a[rel*="tag"],
+a[href*="/category/"], a[href*="/tag/"],
+a[href*="/cat/"], a[href*="/blog/"],
+.tag-link, .category-link, .cat-text, .tag-text,
+[class*="post-cat"], [class*="entry-cat"], [class*="post-category"],
+[class*="entry-category"], [class*="cat-link"], [class*="cat-label"],
+[class*="category-tag"], [class*="post-tag"], [class*="tag-link"],
+[class*="meta-cat"], [class*="post-meta"] a, [class*="entry-meta"] a,
+.article-cat, .post-categories a, .post-tags-links a {
+    color: var(--appdony-accent) !important;
 }
 
-.cat-tabs a.active,
-.category-tabs a.active,
-.products-tabs a.active,
-[class*="cat-tab"].active {
+/* هاور روی دسته‌بندی */
+a[href*="/category/"]:hover, a[href*="/tag/"]:hover,
+.post-cat a:hover, [class*="post-cat"] a:hover,
+[class*="post-category"] a:hover, .tag-link:hover {
     color: var(--appdony-accent) !important;
-    border-bottom-color: var(--appdony-accent) !important;
+    opacity: 0.85 !important;
 }
 
 /* ===== دکمه‌های اصلی سایت ===== */
-.btn-primary,
-.btn-install,
-a.btn-install,
-button[class*="download"],
-[class*="btn-download"],
-[class*="download-btn"],
+.btn-primary, .btn-install, a.btn-install,
+button[class*="download"], [class*="btn-download"], [class*="download-btn"],
 input[type="submit"] {
     background-color: var(--appdony-accent) !important;
     border-color: var(--appdony-accent) !important;
 }
 
 /* ===== لینک‌ها ===== */
-a {
-    color: var(--appdony-accent) !important;
-}
+a { color: var(--appdony-accent) !important; }
 
 /* ===== اینپوت‌ها ===== */
-input[type="text"],
-input[type="search"],
-input[type="email"],
-input[type="password"],
-textarea {
+input[type="text"], input[type="search"], input[type="email"],
+input[type="password"], textarea {
     border-radius: 16px !important;
 }
-
-input:focus,
-textarea:focus,
-select:focus {
+input:focus, textarea:focus, select:focus {
     border-color: var(--appdony-accent) !important;
     box-shadow: 0 0 0 3px var(--appdony-accent-20) !important;
     outline: none !important;
 }
 
 /* ===== اسکرول‌بار ===== */
-::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
-}
-
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-thumb {
     background: var(--appdony-accent-30) !important;
     border-radius: 5px;
 }
-
-::-webkit-scrollbar-track {
-    background: transparent;
-}
+::-webkit-scrollbar-track { background: transparent; }
