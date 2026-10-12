@@ -1,180 +1,192 @@
-:root {
-    --appdony-accent: #0D7377;
-    --appdony-accent-10: rgba(13, 115, 119, 0.10);
-    --appdony-accent-20: rgba(13, 115, 119, 0.20);
-    --appdony-accent-30: rgba(13, 115, 119, 0.30);
-}
+(function() {
+    if (window._appdonyInit) return;
+    window._appdonyInit = true;
 
-* {
-    -webkit-tap-highlight-color: transparent !important;
-    -webkit-touch-callout: none !important;
-}
+    function notifyNavStart() {
+        if (window.AppdonyBridge) try { window.AppdonyBridge.onNavStart(); } catch(e) {}
+    }
+    function recordClick(x, y) {
+        if (window.AppdonyBridge) try { window.AppdonyBridge.onAnyClick(x, y); } catch(e) {}
+    }
 
-/* ===== دکمه‌های اصلی ===== */
-button:not(.bottom-nav-item):not(.device-chip):not(.cat-link):not(.charts-tab),
-input[type="submit"], input[type="button"],
-.elementor-button, a.btn-install,
-[class*="download-btn"], [class*="btn-download"] {
-    border-radius: 20px !important;
-    padding: 12px 26px !important;
-    font-weight: 600 !important;
-    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
-}
-button:not(.bottom-nav-item):not(.device-chip):not(.cat-link):not(.charts-tab):active,
-input[type="submit"]:active, .elementor-button:active, a.btn-install:active {
-    transform: scale(0.95) !important;
-}
+    document.addEventListener('touchstart', function(e) {
+        if (e.touches && e.touches[0]) recordClick(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: true, capture: true });
+    document.addEventListener('click', function(e) { recordClick(e.clientX, e.clientY); }, true);
 
-/* ===== نوار پایین ===== */
-.bottom-nav, .bottom-nav *, .bottom-nav-item, .bottom-nav-item * {
-    -webkit-tap-highlight-color: transparent !important;
-    outline: none !important;
-}
-.bottom-nav a, .bottom-nav-item { background-color: transparent !important; }
-.bottom-nav a:active, .bottom-nav-item:active { background-color: transparent !important; }
+    document.addEventListener('click', function(e) {
+        var nav = e.target.closest('.bottom-nav-item, .bottom-nav a, .cat-link');
+        if (nav) { notifyNavStart(); showCircle(e, nav); }
+    }, true);
 
-.bottom-nav .active,
-.bottom-nav-item.active,
-.bottom-nav a.active,
-.bottom-nav a[aria-current="page"],
-.bottom-nav li.active > a {
-    background-color: var(--appdony-accent-20) !important;
-    border-radius: 50px !important;
-    color: var(--appdony-accent) !important;
-    box-shadow: none !important;
-    padding: 6px 20px !important;
-    animation: appdonyPillIn 0.55s cubic-bezier(0.34, 1.4, 0.64, 1) !important;
-}
+    function showCircle(e, el) {
+        var rect = el.getBoundingClientRect();
+        var x = rect.left + rect.width / 2;
+        var y = rect.top + rect.height / 2;
+        var accent = window._appdonyAccent || '#0D7377';
+        var maxDist = Math.max(
+            Math.sqrt(x * x + y * y),
+            Math.sqrt((window.innerWidth - x) ** 2 + y * y),
+            Math.sqrt(x * x + (window.innerHeight - y) ** 2),
+            Math.sqrt((window.innerWidth - x) ** 2 + (window.innerHeight - y) ** 2)
+        );
+        var c = document.createElement('div');
+        c.style.cssText = 'position:fixed;left:' + x + 'px;top:' + y + 'px;width:0;height:0;border-radius:50%;background:' + accent + ';opacity:0.18;transform:translate(-50%,-50%);pointer-events:none;z-index:99999;transition:width .55s cubic-bezier(.22,1,.36,1),height .55s cubic-bezier(.22,1,.36,1),opacity .55s ease';
+        document.body.appendChild(c);
+        requestAnimationFrame(function() {
+            c.style.width = (maxDist * 2) + 'px';
+            c.style.height = (maxDist * 2) + 'px';
+            c.style.opacity = '0';
+        });
+        setTimeout(function() { if (c.parentNode) c.parentNode.removeChild(c); }, 700);
+    }
 
-@keyframes appdonyPillIn {
-    0% { background-color: transparent !important; transform: scale(0.85); opacity: 0.4; }
-    60% { background-color: var(--appdony-accent-30) !important; transform: scale(1.03); opacity: 1; }
-    100% { background-color: var(--appdony-accent-20) !important; transform: scale(1); opacity: 1; }
-}
+    if (!window._appdonyContentObserver) {
+        var t = document.querySelector('main, #main, .content, .site-content') || document.body;
+        window._appdonyContentObserver = new MutationObserver(function() {
+            if (window.AppdonyBridge) try { window.AppdonyBridge.onContentReady(); } catch(e) {}
+        });
+        window._appdonyContentObserver.observe(t, { childList: true });
+    }
 
-.bottom-nav .active i, .bottom-nav .active svg, .bottom-nav .active span,
-.bottom-nav-item.active i, .bottom-nav-item.active span {
-    color: var(--appdony-accent) !important;
-    fill: var(--appdony-accent) !important;
-}
+    document.addEventListener('touchstart', function(e) {
+        var t = e.target.closest('a, button, [class*="btn"], [class*="button"], [role="button"]');
+        if (t) {
+            t.style.transition = 'transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1)';
+            t.style.transform = 'scale(0.94)';
+        }
+    }, { passive: true });
+    document.addEventListener('touchend', function(e) {
+        var t = e.target.closest('a, button, [class*="btn"], [class*="button"], [role="button"]');
+        if (t) setTimeout(function() {
+            t.style.transform = '';
+            t.style.transition = 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
+        }, 90);
+    }, { passive: true });
 
-/* ===== نوار دسته‌بندی بالا ===== */
-.cat-link { -webkit-tap-highlight-color: transparent !important; }
-.cat-link.active, .cat-link[aria-current], .cat-link[aria-current="page"] {
-    color: var(--appdony-accent) !important;
-    border-bottom-color: var(--appdony-accent) !important;
-}
+    // ⭐ اعمال رنگ تم روی کل سایت
+    window._appdonySetAccent = function(hex) {
+        window._appdonyAccent = hex;
 
-/* ===== دکمه‌های دستگاه (کار می‌کرده) ===== */
-.device-bar, .device-tabs, .platform-tabs,
-[class*="device"], [class*="platform"] {
-    -webkit-tap-highlight-color: transparent !important;
-    outline: none !important;
-}
-.device-chip, .device-tab, .platform-chip, .platform-tab,
-[class*="device-chip"], [class*="device-tab"],
-[class*="platform-chip"], [class*="platform-tab"] {
-    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
-    -webkit-tap-highlight-color: transparent !important;
-    border-radius: 50px !important;
-    border: 2px solid transparent !important;
-}
-.device-chip.active, .device-chip[aria-current], .device-chip[aria-selected="true"],
-.device-bar .active, .device-bar .chip.active, .device-bar li.active .device-chip,
-.device-tabs .active, .device-tab.active,
-.platform-tabs .active, .platform-chip.active, .platform-tab.active,
-[class*="device"] .active, [class*="device"][class*="active"],
-[class*="platform"] .active, [class*="device-chip"].active, [class*="device-tab"].active {
-    background-color: var(--appdony-accent-20) !important;
-    border-color: var(--appdony-accent) !important;
-    color: var(--appdony-accent) !important;
-    border-radius: 50px !important;
-}
-.device-chip.active svg, .device-chip.active i, .device-chip.active span,
-.device-bar .active svg, .device-bar .active i, .device-bar .active span,
-.device-tabs .active svg, .device-tabs .active i, .device-tabs .active span,
-[class*="device"].active svg, [class*="device"].active i, [class*="device"].active span,
-[class*="platform"].active svg, [class*="platform"].active i, [class*="platform"].active span {
-    color: var(--appdony-accent) !important;
-    fill: var(--appdony-accent) !important;
-}
+        try {
+            var root = document.documentElement;
+            root.style.setProperty('--accent', hex);
+            root.style.setProperty('--primary', hex);
+            root.style.setProperty('--brand', hex);
+            root.style.setProperty('--main-color', hex);
+            root.style.setProperty('--theme-color', hex);
+            root.style.setProperty('--link-color', hex);
+        } catch(e) {}
 
-/* ===============================================
-   ⭐⭐⭐ دکمه‌های پایین: بیشترین نصب / بیشترین امتیاز
-   =============================================== */
-.charts-tabs,
-.charts-tabs * {
-    -webkit-tap-highlight-color: transparent !important;
-    outline: none !important;
-}
+        var old = document.getElementById('appdony-accent-style');
+        if (old) old.remove();
 
-.charts-tab {
-    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
-    border-radius: 50px !important;
-    padding: 8px 20px !important;
-    -webkit-tap-highlight-color: transparent !important;
-    border: 2px solid transparent !important;
-    background-color: transparent !important;
-    color: inherit !important;
-}
-.charts-tab:active {
-    transform: scale(0.95) !important;
-}
-.charts-tab.active,
-.charts-tab[aria-selected="true"],
-.charts-tab.active:focus {
-    background-color: var(--appdony-accent-20) !important;
-    color: var(--appdony-accent) !important;
-    border-color: var(--appdony-accent) !important;
-    border-radius: 50px !important;
-}
+        var css = `
+            :root {
+                --appdony-accent: ${hex};
+                --appdony-accent-10: ${hex}1A;
+                --appdony-accent-20: ${hex}33;
+                --appdony-accent-30: ${hex}4D;
+                --accent: ${hex};
+                --primary: ${hex};
+                --brand: ${hex};
+            }
 
-/* ===============================================
-   ⭐⭐⭐ متن دسته‌بندی (gta) در برترین‌ها
-   =============================================== */
-.chart-info .meta-line,
-.chart-row .meta-line,
-.charts-list .meta-line,
-.charts-list .chart-info .meta-line {
-    color: var(--appdony-accent) !important;
-}
+            /* device chips */
+            .device-bar .device-chip.active,
+            .device-chip.active,
+            .device-chip[aria-current] {
+                background-color: var(--appdony-accent-20) !important;
+                border-color: var(--appdony-accent) !important;
+                color: var(--appdony-accent) !important;
+            }
+            .device-chip.active svg,
+            .device-chip.active i {
+                color: var(--appdony-accent) !important;
+                fill: var(--appdony-accent) !important;
+            }
 
-/* ریست رنگ rating و ستاره‌ها (خاکستری بمونن) */
-.chart-info .meta-line .rating,
-.chart-row .meta-line .rating,
-.charts-list .meta-line .rating,
-.chart-info .meta-line .rating svg,
-.chart-row .meta-line .rating svg {
-    color: #888888 !important;
-    fill: #888888 !important;
-}
+            /* charts-tab (بیشترین نصب/امتیاز) */
+            html body .charts-tabs .charts-tab.active,
+            html body .charts-tabs button.charts-tab.active,
+            html body button.charts-tab.active,
+            html body button[data-tab].active {
+                background-color: var(--appdony-accent-20) !important;
+                color: var(--appdony-accent) !important;
+                border-color: var(--appdony-accent) !important;
+            }
 
-/* ===== دکمه‌های اصلی سایت ===== */
-.btn-primary, .btn-install, a.btn-install,
-button[class*="download"], [class*="btn-download"], [class*="download-btn"],
-input[type="submit"] {
-    background-color: var(--appdony-accent) !important;
-    border-color: var(--appdony-accent) !important;
-}
+            /* meta-line "gta" */
+            html body .charts-list .chart-row .chart-info .meta-line,
+            html body .chart-row .chart-info .meta-line,
+            html body .chart-info .meta-line,
+            html body .chart-row .meta-line {
+                color: var(--appdony-accent) !important;
+            }
 
-/* ===== لینک‌ها ===== */
-a { color: var(--appdony-accent) !important; }
+            /* cat-link active */
+            html body .cat-link.active,
+            html body .cat-link[aria-current] {
+                color: var(--appdony-accent) !important;
+                border-bottom-color: var(--appdony-accent) !important;
+            }
 
-/* ===== اینپوت‌ها ===== */
-input[type="text"], input[type="search"], input[type="email"],
-input[type="password"], textarea {
-    border-radius: 16px !important;
-}
-input:focus, textarea:focus, select:focus {
-    border-color: var(--appdony-accent) !important;
-    box-shadow: 0 0 0 3px var(--appdony-accent-20) !important;
-    outline: none !important;
-}
+            /* bottom-nav active */
+            html body .bottom-nav .active,
+            html body .bottom-nav-item.active {
+                background-color: var(--appdony-accent-20) !important;
+                color: var(--appdony-accent) !important;
+            }
+            html body .bottom-nav .active svg,
+            html body .bottom-nav .active i,
+            html body .bottom-nav .active span,
+            html body .bottom-nav-item.active svg,
+            html body .bottom-nav-item.active i,
+            html body .bottom-nav-item.active span {
+                color: var(--appdony-accent) !important;
+                fill: var(--appdony-accent) !important;
+            }
 
-/* ===== اسکرول‌بار ===== */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-thumb {
-    background: var(--appdony-accent-30) !important;
-    border-radius: 5px;
-}
-::-webkit-scrollbar-track { background: transparent; }
+            /* لینک‌ها */
+            a { color: var(--appdony-accent) !important; }
+        `;
+
+        var s = document.createElement('style');
+        s.id = 'appdony-accent-style';
+        s.appendChild(document.createTextNode(css));
+        (document.head || document.documentElement).appendChild(s);
+    };
+
+    // ⭐ خوندن رنگ ذخیره‌شده
+    function applySavedAccent() {
+        try {
+            var saved = localStorage.getItem('_appdony_accent');
+            if (saved && window._appdonySetAccent) {
+                window._appdonySetAccent(saved);
+            }
+        } catch(e) {}
+    }
+
+    applySavedAccent();
+
+    if (!window._appdonyAccentObserver) {
+        window._appdonyAccentObserver = new MutationObserver(function() {
+            if (!document.getElementById('appdony-accent-style') &&
+                !document.getElementById('appdony-accent-direct')) {
+                applySavedAccent();
+            }
+        });
+        window._appdonyAccentObserver.observe(document.documentElement, {
+            childList: true, subtree: true
+        });
+    }
+
+    if (!window._appdonyAccentInterval) {
+        window._appdonyAccentInterval = setInterval(function() {
+            if (!document.getElementById('appdony-accent-style') &&
+                !document.getElementById('appdony-accent-direct')) {
+                applySavedAccent();
+            }
+        }, 2000);
+    }
+})();
